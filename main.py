@@ -32,7 +32,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.0.0",
+    "1.6.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -342,6 +342,25 @@ class MonkeyCodePlugin(Star):
                     event.unified_msg_origin, f"mc-{task_id[:8]}.md", md
                 )
                 yield event.plain_result(f"✅ 已发送任务 {task_id} 的日志文件。")
+            elif action == "links":
+                if len(args) < 2:
+                    yield event.plain_result("用法：/mc links <任务ID>")
+                    return
+                task_id = args[1]
+                client = await self._ensure_client()
+                links = await asyncio.to_thread(client.list_task_links, task_id)
+                if not links:
+                    yield event.plain_result("该任务轮次中没有发现预览链接。")
+                else:
+                    lines = ["🔗 任务预览链接："]
+                    for item in links[:20]:
+                        status = item["status"] or "未检测"
+                        code = item["http_code"]
+                        code_str = f" HTTP {code}" if code else ""
+                        lines.append(
+                            f"  {status}{code_str}  {item['url']}（x{item['count']}）"
+                        )
+                    yield event.plain_result("\n".join(lines))
             else:
                 yield event.plain_result(self._help_text())
         except Exception as e:
@@ -391,7 +410,8 @@ class MonkeyCodePlugin(Star):
             "/mc Git身份           Git 身份列表\n"
             "/mc GitBots         Git Bots 列表\n"
             "/mc 文件 <VMID> [路径] 查看虚拟机目录\n"
-            "/mc 日志 <任务ID>    导出任务日志为 md 文件\n\n"
+            "/mc 日志 <任务ID>    导出任务日志为 md 文件\n"
+            "/mc links <任务ID>  列出任务中的预览链接及存活状态\n\n"
             "也可直接对我说：用 MonkeyCode 帮我 <任务描述>"
         )
 

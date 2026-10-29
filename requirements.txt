@@ -1,3 +1,2 @@
 monkeycode-sdk @ git+https://github.com/cyqmq/monkeycode-sdk.git
 aiohttp
-apscheduler
