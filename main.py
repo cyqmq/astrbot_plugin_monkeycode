@@ -14,6 +14,7 @@ LLM 工具：use_monkeycode —— 用户说「用 MonkeyCode 帮我...」时自
 """
 import asyncio
 import json
+import os
 import re
 from typing import Any
 
@@ -73,6 +74,23 @@ class MonkeyCodePlugin(Star):
             await self.context.send_message(origin, MessageChain().message(text))
         except Exception as e:
             logger.error(f"[{PLUGIN_NAME}] 消息发送失败: {e}")
+
+    async def _send_markdown(self, origin: str, filename: str, content: str) -> None:
+        """把长内容写成 md 临时文件并发送到会话，避免长文本刷屏。"""
+        import tempfile
+
+        from astrbot.api.message_components import File as CompFile
+
+        path = os.path.join(tempfile.gettempdir(), filename)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+            chain = MessageChain().message(CompFile(file=path, name=filename))
+            await self.context.send_message(origin, chain)
+        except Exception as e:
+            logger.error(f"[{PLUGIN_NAME}] 发送 md 文件失败: {e}")
+            # 兜底：文本截断发送
+            await self._send(origin, content[:3000])
 
     @staticmethod
     def _args(event: AstrMessageEvent, cmd: str) -> list[str]:
@@ -135,17 +153,47 @@ class MonkeyCodePlugin(Star):
                 f"⚡ MonkeyCode 任务完成\n"
                 f"任务ID：{task_id}\n状态：{result.status}"
             )
-            if result.repo_url:
-                text += f"\n仓库：{result.repo_url}"
-            if result.branch:
-                text += f"\n分支：{result.branch}"
             if result.pr_url:
                 text += f"\nPR：{result.pr_url}"
             if result.summary:
-                text += f"\n摘要：{result.summary}"
+                text += f"\n摘要：{result.summary[:200]}"
+            text += "\n完整日志已发送为 md 文件。"
             await self._send(origin, text)
+            md = await asyncio.to_thread(self._build_task_md, client, task_id, result)
+            await self._send_markdown(origin, f"mc-{task_id[:8]}.md", md)
         except Exception as e:
             await self._send(origin, f"❌ MonkeyCode 任务 {task_id} 失败：{e}")
+
+    def _build_task_md(self, client: Any, task_id: str, result: Any) -> str:
+        """把任务详情与执行轮次整理成 Markdown 文本。"""
+        lines = [
+            f"# MonkeyCode 任务 {task_id}",
+            "",
+            f"- 状态：{result.status}",
+            f"- 仓库：{result.repo_url or '（未绑定）'}",
+            f"- 分支：{result.branch or '-'}",
+            f"- PR：{result.pr_url or '无'}",
+            f"- 摘要：{result.summary or '无'}",
+        ]
+        if result.content:
+            lines += ["", "## 任务内容", "", str(result.content)]
+        try:
+            rounds = client.get_task_rounds(task_id, limit=10)
+            rounds_list = (
+                rounds.get("rounds") or rounds.get("list") or []
+                if isinstance(rounds, dict)
+                else (rounds or [])
+            )
+            lines += ["", "## 执行轮次", ""]
+            for r in rounds_list:
+                role = r.get("role") or r.get("type") or "agent"
+                content = str(r.get("content") or r.get("message") or "")[:600]
+                lines.append(f"### [{role}]")
+                lines.append(content)
+                lines.append("")
+        except Exception:
+            pass
+        return "\n".join(lines)
 
     # ---------- 命令 ----------
 
@@ -252,6 +300,20 @@ class MonkeyCodePlugin(Star):
                 folders = await asyncio.to_thread(client.list_folders, vm_id, path)
                 text = self._fmt(folders)
                 yield event.plain_result(f"📁 {path} 下的内容：\n{text[:800]}")
+            elif action == "日志":
+                if len(args) < 2:
+                    yield event.plain_result("用法：/mc 日志 <任务ID>")
+                    return
+                task_id = args[1]
+                client = await self._ensure_client()
+                task = await asyncio.to_thread(client.get_task, task_id)
+                md = await asyncio.to_thread(
+                    self._build_task_md, client, task_id, task
+                )
+                await self._send_markdown(
+                    event.unified_msg_origin, f"mc-{task_id[:8]}.md", md
+                )
+                yield event.plain_result(f"✅ 已发送任务 {task_id} 的日志文件。")
             else:
                 yield event.plain_result(self._help_text())
         except Exception as e:
@@ -300,7 +362,8 @@ class MonkeyCodePlugin(Star):
             "/mc 项目             项目列表\n"
             "/mc Git身份           Git 身份列表\n"
             "/mc GitBots         Git Bots 列表\n"
-            "/mc 文件 <VMID> [路径] 查看虚拟机目录\n\n"
+            "/mc 文件 <VMID> [路径] 查看虚拟机目录\n"
+            "/mc 日志 <任务ID>    导出任务日志为 md 文件\n\n"
             "也可直接对我说：用 MonkeyCode 帮我 <任务描述>"
         )
 
