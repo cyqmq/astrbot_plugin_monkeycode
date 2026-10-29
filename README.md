@@ -22,8 +22,9 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 | `summary_prompt` | 摘要小模型人格/指令（默认中文简洁摘要） |
 
 > 摘要说明：默认**不调用任何模型**，直接使用 MonkeyCode 平台返回的原始摘要。
-> 开启 `summary_enabled` 并填写 `summary_provider_id` 后，才会调用你指定的小模型生成摘要，
-> **不会**使用 AstrBot 主模型。
+> 开启 `summary_enabled` 并填写 `summary_provider_id` 后，才会调用你指定的小模型生成摘要。
+> 每次摘要都是**独立调用**，小模型上下文只包含「人格指令 + 本次完整任务内容」，
+> 不保留多轮对话历史，也不会使用 AstrBot 主模型。
 
 ## 命令
 

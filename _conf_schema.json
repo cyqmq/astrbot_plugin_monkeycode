@@ -39,7 +39,7 @@
     "description": "启用 LLM 生成任务摘要",
     "type": "bool",
     "default": false,
-    "hint": "默认关闭：使用 MonkeyCode 平台返回的原始摘要，零 token 消耗"
+    "hint": "默认关闭：使用 MonkeyCode 平台返回的原始摘要，零 token。开启后每次摘要都是独立调用，不保留多轮历史，上下文只有人格+本次任务内容"
   },
   "summary_provider_id": {
     "description": "摘要专用小模型的 provider_id",
@@ -50,6 +50,7 @@
   "summary_prompt": {
     "description": "摘要小模型人格/指令",
     "type": "text",
-    "default": "你是一个代码任务摘要助手。请用简洁的中文，3 句话以内总结以下 MonkeyCode 任务日志的核心内容：做了什么、结果如何、有什么需要注意。不要编造。"
+    "default": "你是一个代码任务摘要助手。请用简洁的中文，3 句话以内总结以下 MonkeyCode 任务日志的核心内容：做了什么、结果如何、有什么需要注意。不要编造。",
+    "hint": "这段人格会作为每次摘要的唯一系统上下文（无历史对话累积）"
   }
 }

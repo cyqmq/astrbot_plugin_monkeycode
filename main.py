@@ -168,8 +168,10 @@ class MonkeyCodePlugin(Star):
     async def _summarize(self, result: Any) -> str:
         """生成简短摘要。
 
-        summary_enabled=False 或未配置小模型时，返回平台原始 summary（零 token）；
-        开启且配置了 summary_provider_id 时，调用指定小模型生成摘要（不碰主模型）。
+        - 每次摘要都是**独立调用**：小模型上下文只包含「人格指令 + 本次任务内容」，
+          不保留任何多轮对话历史。
+        - summary_enabled=False 或未配置小模型时，返回平台原始 summary（零 token）；
+        - 开启且配置了 summary_provider_id 时，调用指定小模型生成摘要（不碰主模型）。
         """
         if not self._cfg("summary_enabled", False):
             return str(getattr(result, "summary", "") or "")
@@ -177,7 +179,8 @@ class MonkeyCodePlugin(Star):
         if not provider_id:
             return str(getattr(result, "summary", "") or "")
         prompt = str(self._cfg("summary_prompt", "") or "")
-        content = str(getattr(result, "content", "") or "")[:2000]
+        # 无历史上下文，可放心喂完整任务内容；仅保留高上限防止小模型上下文溢出
+        content = str(getattr(result, "content", "") or "")[:8000]
         try:
             llm_resp = await self.context.llm_generate(
                 chat_provider_id=provider_id,
