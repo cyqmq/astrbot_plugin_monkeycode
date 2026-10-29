@@ -181,6 +181,24 @@ class MonkeyCodePlugin(Star):
                 client = await self._ensure_client()
                 await asyncio.to_thread(client.stop_task, args[1])
                 yield event.plain_result(f"已请求停止任务 {args[1]}。")
+            elif action == "回复":
+                if len(args) < 3:
+                    yield event.plain_result("用法：/mc 回复 <任务ID> <要给 agent 的消息>")
+                    return
+                task_id = args[1]
+                content = " ".join(args[2:]).strip()
+                if not content:
+                    yield event.plain_result("回复内容不能为空。")
+                    return
+                client = await self._ensure_client()
+                events = await client.send_task_message(
+                    task_id, content, read_timeout=60
+                )
+                types = [e.type for e in events]
+                summary = "\n".join(f"  · {t}" for t in types[:8])
+                yield event.plain_result(
+                    f"✅ 已向任务 {task_id} 发送消息。\n收到事件：\n{summary}"
+                )
             else:
                 yield event.plain_result(self._help_text())
         except Exception as e:
@@ -222,6 +240,7 @@ class MonkeyCodePlugin(Star):
             "/mc 帮助            查看帮助\n"
             "/mc 环境            列出云端环境/镜像/模型\n"
             "/mc 任务 <内容>      提交编程任务（后台执行，完成后通知）\n"
+            "/mc 回复 <任务ID> <内容>  向运行中的任务发送消息，让 agent 继续执行\n"
             "/mc 任务列表         最近任务\n"
             "/mc 停止 <任务ID>    停止任务\n\n"
             "也可直接对我说：用 MonkeyCode 帮我 <任务描述>"
@@ -246,6 +265,26 @@ class MonkeyCodePlugin(Star):
             )
         except Exception as e:
             yield event.plain_result(f"MonkeyCode 任务提交失败：{e}")
+
+    @filter.llm_tool(name="monkeycode_reply")
+    async def tool_monkeycode_reply(
+        self, event: AstrMessageEvent, task_id: str, content: str
+    ):
+        """向运行中的 MonkeyCode 任务发送一条用户消息，让 agent 继续执行。
+
+        Args:
+            task_id(string): MonkeyCode 任务 ID
+            content(string): 要发送给 agent 的消息内容
+        """
+        try:
+            client = await self._ensure_client()
+            events = await client.send_task_message(task_id, content, read_timeout=60)
+            types = [e.type for e in events]
+            yield event.plain_result(
+                f"已向任务 {task_id} 发送消息，收到事件：{', '.join(types[:5])}。"
+            )
+        except Exception as e:
+            yield event.plain_result(f"MonkeyCode 回复失败：{e}")
 
     async def terminate(self):
         if self._client is not None:
