@@ -14,7 +14,7 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 | `email` | MonkeyCode 账号邮箱 |
 | `password` | MonkeyCode 账号密码 |
 | `base_url` | API 地址（云平台默认 `https://monkeycode-ai.com`；自托管填自己域名） |
-| `default_repo_url` | 默认 GitHub 仓库 URL（提交任务时可用，可留空） |
+| `default_repo_url` | 默认 GitHub 仓库 URL（**可留空：不绑定仓库也能创建任务**） |
 | `default_branch` | 默认分支（`main`） |
 | `skill_ids` | 默认技能列表（逗号分隔，可选） |
 
