@@ -161,7 +161,7 @@ class MonkeyCodePlugin(Star):
             text += "\n完整日志已发送为 md 文件。"
             await self._send(origin, text)
             md = await asyncio.to_thread(self._build_task_md, client, task_id, result)
-            await self._send_markdown(origin, f"mc-{task_id[:8]}.md", md)
+            await self._send_markdown(origin, f"mc-{self._safe_filename(task_id)}.md", md)
         except Exception as e:
             await self._send(origin, f"❌ MonkeyCode 任务 {task_id} 失败：{e}")
 
@@ -268,6 +268,7 @@ class MonkeyCodePlugin(Star):
                     yield event.plain_result("回复内容不能为空。")
                     return
                 client = await self._ensure_client()
+                # SDK 的 send_task_message 是原生 async（websockets），直接 await 即可
                 events = await client.send_task_message(
                     task_id, content, read_timeout=60
                 )
@@ -339,7 +340,7 @@ class MonkeyCodePlugin(Star):
                     self._build_task_md, client, task_id, task
                 )
                 await self._send_markdown(
-                    event.unified_msg_origin, f"mc-{task_id[:8]}.md", md
+                    event.unified_msg_origin, f"mc-{self._safe_filename(task_id)}.md", md
                 )
                 yield event.plain_result(f"✅ 已发送任务 {task_id} 的日志文件。")
             elif action == "links":
@@ -361,6 +362,42 @@ class MonkeyCodePlugin(Star):
                             f"  {status}{code_str}  {item['url']}（x{item['count']}）"
                         )
                     yield event.plain_result("\n".join(lines))
+            elif action == "删除":
+                if len(args) < 2:
+                    yield event.plain_result("用法：/mc 删除 <任务ID>")
+                    return
+                task_id = args[1]
+                client = await self._ensure_client()
+                await asyncio.to_thread(client.delete_task, task_id)
+                yield event.plain_result(f"已删除任务 {task_id}。")
+            elif action == "技能":
+                client = await self._ensure_client()
+                skills = await asyncio.to_thread(client.list_skills)
+                if not skills:
+                    yield event.plain_result("暂无可用技能。")
+                else:
+                    lines = ["🛠 可用技能："]
+                    for s in skills[:20]:
+                        name = s.get("name") or s.get("id") or s.get("title") or str(s)
+                        lines.append(f"  · {name}")
+                    yield event.plain_result("\n".join(lines))
+            elif action == "分支":
+                if len(args) < 3:
+                    yield event.plain_result("用法：/mc 分支 <Git身份ID> <owner/repo>")
+                    return
+                identity_id = args[1]
+                repo_full = args[2]
+                client = await self._ensure_client()
+                branches = await asyncio.to_thread(
+                    client.list_git_branches, identity_id, repo_full
+                )
+                lines = ["🌿 分支列表："]
+                if not branches:
+                    lines.append("  （无）")
+                for b in branches[:20]:
+                    name = b.get("name") or b.get("branch") or str(b)
+                    lines.append(f"  · {name}")
+                yield event.plain_result("\n".join(lines))
             else:
                 yield event.plain_result(self._help_text())
         except Exception as e:
@@ -411,7 +448,10 @@ class MonkeyCodePlugin(Star):
             "/mc GitBots         Git Bots 列表\n"
             "/mc 文件 <VMID> [路径] 查看虚拟机目录\n"
             "/mc 日志 <任务ID>    导出任务日志为 md 文件\n"
-            "/mc links <任务ID>  列出任务中的预览链接及存活状态\n\n"
+            "/mc links <任务ID>  列出任务中的预览链接及存活状态\n"
+            "/mc 删除 <任务ID>  删除任务\n"
+            "/mc 技能           列出可用技能\n"
+            "/mc 分支 <GitID> <owner/repo>  查看仓库分支\n\n"
             "也可直接对我说：用 MonkeyCode 帮我 <任务描述>"
         )
 
@@ -421,6 +461,12 @@ class MonkeyCodePlugin(Star):
         if isinstance(obj, (dict, list)):
             return json.dumps(obj, ensure_ascii=False, indent=2, default=str)[:1000]
         return str(obj)
+
+    @staticmethod
+    def _safe_filename(task_id: str) -> str:
+        """把任务 ID 消毒为安全文件名（只保留字母数字/连字符/下划线）。"""
+        safe = re.sub(r"[^A-Za-z0-9_-]", "_", str(task_id))[:16] or "task"
+        return safe
 
     # ---------- LLM 工具 ----------
 
@@ -454,6 +500,7 @@ class MonkeyCodePlugin(Star):
         """
         try:
             client = await self._ensure_client()
+            # SDK 的 send_task_message 是原生 async（websockets），直接 await 即可
             events = await client.send_task_message(task_id, content, read_timeout=60)
             types = [e.type for e in events]
             yield event.plain_result(

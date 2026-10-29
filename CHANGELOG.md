@@ -1,5 +1,17 @@
 # 更新日志
 
+## [v1.7.0] - 2026-10-25
+
+### 新增
+- `/mc 删除 <任务ID>`：删除任务
+- `/mc 技能`：列出可用技能（配合 skill_ids）
+- `/mc 分支 <GitID> <owner/repo>`：查看仓库分支
+- 基于 SDK v0.1.10（附件上传、任务删除、插件/技能列表、钱包流水、Git 分支）
+
+### 修复（审查反馈）
+- `_send_markdown` 文件名使用 `_safe_filename` 消毒任务 ID，防止非常规 ID 导致路径问题
+- 确认 `send_task_message` 为 SDK 原生异步（websockets），直接 `await` 正确
+
 ## [v1.6.0] - 2026-10-25
 
 ### 新增
