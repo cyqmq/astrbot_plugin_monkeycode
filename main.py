@@ -398,6 +398,56 @@ class MonkeyCodePlugin(Star):
                     name = b.get("name") or b.get("branch") or str(b)
                     lines.append(f"  · {name}")
                 yield event.plain_result("\n".join(lines))
+            elif action == "可用模型":
+                client = await self._ensure_client()
+                models = await asyncio.to_thread(client.list_available_models)
+                lines = ["🤖 可用模型："]
+                if not models:
+                    lines.append("  （无）")
+                for m in (models if isinstance(models, list) else [models])[:20]:
+                    name = m.get("name") or m.get("model") or m.get("id") or str(m)
+                    lines.append(f"  · {name}")
+                yield event.plain_result("\n".join(lines))
+            elif action == "Issue":
+                if len(args) < 3:
+                    yield event.plain_result("用法：/mc Issue <项目ID> <标题>")
+                    return
+                project_id = args[1]
+                title = " ".join(args[2:]).strip()
+                client = await self._ensure_client()
+                issue = await asyncio.to_thread(
+                    client.create_project_issue, project_id, title
+                )
+                yield event.plain_result(f"✅ 已创建 Issue：{self._fmt(issue)[:300]}")
+            elif action == "评论":
+                if len(args) < 4:
+                    yield event.plain_result("用法：/mc 评论 <项目ID> <IssueID> <内容>")
+                    return
+                project_id, issue_id = args[1], args[2]
+                comment = " ".join(args[3:]).strip()
+                client = await self._ensure_client()
+                result = await asyncio.to_thread(
+                    client.add_issue_comment, project_id, issue_id, comment
+                )
+                yield event.plain_result(f"✅ 已评论：{self._fmt(result)[:300]}")
+            elif action == "自动批准":
+                if len(args) < 2:
+                    yield event.plain_result("用法：/mc 自动批准 <任务ID>（开启）或 /mc 取消自动批准 <任务ID>")
+                    return
+                task_id = args[1]
+                client = await self._ensure_client()
+                async with client.open_task_stream(task_id, mode="attach") as stream:
+                    await stream.send_auto_approve(True)
+                yield event.plain_result(f"已开启任务 {task_id} 的自动批准。")
+            elif action == "取消自动批准":
+                if len(args) < 2:
+                    yield event.plain_result("用法：/mc 取消自动批准 <任务ID>")
+                    return
+                task_id = args[1]
+                client = await self._ensure_client()
+                async with client.open_task_stream(task_id, mode="attach") as stream:
+                    await stream.send_auto_approve(False)
+                yield event.plain_result(f"已关闭任务 {task_id} 的自动批准。")
             else:
                 yield event.plain_result(self._help_text())
         except Exception as e:
@@ -451,7 +501,11 @@ class MonkeyCodePlugin(Star):
             "/mc links <任务ID>  列出任务中的预览链接及存活状态\n"
             "/mc 删除 <任务ID>  删除任务\n"
             "/mc 技能           列出可用技能\n"
-            "/mc 分支 <GitID> <owner/repo>  查看仓库分支\n\n"
+            "/mc 分支 <GitID> <owner/repo>  查看仓库分支\n"
+            "/mc 可用模型        列出可用模型\n"
+            "/mc Issue <项目ID> <标题>  创建 Issue\n"
+            "/mc 评论 <项目ID> <IssueID> <内容>  评论 Issue\n"
+            "/mc 自动批准 <任务ID> / 取消自动批准 <任务ID>\n\n"
             "也可直接对我说：用 MonkeyCode 帮我 <任务描述>"
         )
 

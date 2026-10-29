@@ -45,6 +45,10 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 /mc 删除 <任务ID>       删除任务
 /mc 技能              列出可用技能
 /mc 分支 <GitID> <owner/repo>  查看仓库分支
+/mc 可用模型              列出可用模型
+/mc Issue <项目ID> <标题>   创建 Issue
+/mc 评论 <项目ID> <IssueID> <内容>  评论 Issue
+/mc 自动批准 <任务ID>      开启/关闭任务自动批准
 ```
 
 任务完成后，机器人会发送**简短文本通知 + 完整日志 md 文件**，避免长文本刷屏和浪费上下文。
