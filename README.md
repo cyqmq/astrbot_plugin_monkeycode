@@ -31,6 +31,7 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 /mc 项目              项目列表
 /mc Git身份            Git 身份列表
 /mc GitBots          Git Bots 列表
+/mc 文件 <VMID> [路径]  查看虚拟机目录
 ```
 
 示例：

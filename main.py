@@ -242,6 +242,16 @@ class MonkeyCodePlugin(Star):
                         f"  · {b.get('name') or b.get('id')} [{b.get('platform')}]"
                     )
                 yield event.plain_result("\n".join(lines))
+            elif action == "文件":
+                if len(args) < 2:
+                    yield event.plain_result("用法：/mc 文件 <VM ID> [路径]")
+                    return
+                vm_id = args[1]
+                path = args[2] if len(args) > 2 else "/root"
+                client = await self._ensure_client()
+                folders = await asyncio.to_thread(client.list_folders, vm_id, path)
+                text = self._fmt(folders)
+                yield event.plain_result(f"📁 {path} 下的内容：\n{text[:800]}")
             else:
                 yield event.plain_result(self._help_text())
         except Exception as e:
@@ -289,7 +299,8 @@ class MonkeyCodePlugin(Star):
             "/mc 钱包 / 签到       查询积分、每日签到\n"
             "/mc 项目             项目列表\n"
             "/mc Git身份           Git 身份列表\n"
-            "/mc GitBots         Git Bots 列表\n\n"
+            "/mc GitBots         Git Bots 列表\n"
+            "/mc 文件 <VMID> [路径] 查看虚拟机目录\n\n"
             "也可直接对我说：用 MonkeyCode 帮我 <任务描述>"
         )
 
