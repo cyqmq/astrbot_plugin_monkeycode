@@ -52,5 +52,23 @@
     "type": "text",
     "default": "你是一个代码任务摘要助手。请用简洁的中文，3 句话以内总结以下 MonkeyCode 任务日志的核心内容：做了什么、结果如何、有什么需要注意。不要编造。",
     "hint": "这段人格会作为每次摘要的唯一系统上下文（无历史对话累积）"
+  },
+  "auto_checkin_enabled": {
+    "description": "开启每日自动签到",
+    "type": "bool",
+    "default": false,
+    "hint": "默认关闭；开启后每天定点自动签到，结果推送到设置的会话"
+  },
+  "auto_checkin_hour": {
+    "description": "自动签到时间（小时，0-23）",
+    "type": "int",
+    "default": 8,
+    "slider": {"min": 0, "max": 23, "step": 1}
+  },
+  "auto_checkin_origin": {
+    "description": "自动签到结果推送的会话（用 /mc 签到 on 自动设置）",
+    "type": "string",
+    "default": "",
+    "invisible": true
   }
 }

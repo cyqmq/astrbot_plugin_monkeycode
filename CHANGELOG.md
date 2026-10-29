@@ -1,5 +1,12 @@
 # 更新日志
 
+## [v1.9.0] - 2026-10-25
+
+### 新增
+- **每日自动签到**：`/mc 签到 on [小时]` 开启定点自动签到，结果推送到当前会话；`/mc 签到 off` 关闭
+- 配置项：`auto_checkin_enabled` / `auto_checkin_hour` / `auto_checkin_origin`
+- 自动签到由插件层实现（APScheduler 定时任务），SDK 仅保留 `checkin()` 基础调用
+
 ## [v1.8.0] - 2026-10-25
 
 ### 新增（可选功能按需接入）

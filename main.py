@@ -18,6 +18,7 @@ import os
 import re
 from typing import Any
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.star import Context, Star, register
@@ -40,6 +41,34 @@ class MonkeyCodePlugin(Star):
         self.config = config
         self._client: MonkeyCodeClient | None = None
         self._login_lock = asyncio.Lock()
+        self.scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+
+    async def initialize(self):
+        """插件初始化：启动每日自动签到（若开启）。"""
+        if self._cfg("auto_checkin_enabled", False):
+            try:
+                hour = int(self._cfg("auto_checkin_hour", 8) or 8)
+            except (TypeError, ValueError):
+                hour = 8
+            self.scheduler.add_job(self._auto_checkin, "cron", hour=hour, minute=0)
+            self.scheduler.start()
+            logger.info(
+                f"[{PLUGIN_NAME}] 每日自动签到已开启（{hour}:00），"
+                f"推送目标：{self._cfg('auto_checkin_origin', '') or '未设置'}"
+            )
+
+    async def _auto_checkin(self) -> None:
+        """每日自动签到并推送结果到配置的会话。"""
+        origin = str(self._cfg("auto_checkin_origin", "") or "").strip()
+        if not origin:
+            logger.warning(f"[{PLUGIN_NAME}] 自动签到未设置推送目标，已跳过。")
+            return
+        try:
+            client = await self._ensure_client()
+            result = await asyncio.to_thread(client.checkin)
+            await self._send(origin, f"✅ 每日签到完成：{self._fmt(result)[:300]}")
+        except Exception as e:
+            await self._send(origin, f"❌ 自动签到失败：{e}")
 
     # ---------- 配置 ----------
 
@@ -282,9 +311,30 @@ class MonkeyCodePlugin(Star):
                 wallet = await asyncio.to_thread(client.get_wallet)
                 yield event.plain_result(f"💰 钱包信息：\n{self._fmt(wallet)}")
             elif action == "签到":
-                client = await self._ensure_client()
-                result = await asyncio.to_thread(client.checkin)
-                yield event.plain_result(f"✅ 签到结果：\n{self._fmt(result)}")
+                mode = args[1] if len(args) > 1 else ""
+                if mode == "on":
+                    hour = args[2] if len(args) > 2 else str(self._cfg("auto_checkin_hour", 8) or 8)
+                    self.config["auto_checkin_enabled"] = True
+                    self.config["auto_checkin_hour"] = int(hour)
+                    self.config["auto_checkin_origin"] = event.unified_msg_origin
+                    self.config.save_config()
+                    if getattr(self.scheduler, "running", False):
+                        self.scheduler.shutdown(wait=False)
+                    self.scheduler.add_job(self._auto_checkin, "cron", hour=int(hour), minute=0)
+                    self.scheduler.start()
+                    yield event.plain_result(
+                        f"✅ 已开启每日自动签到（{hour}:00），结果会推送到当前会话。"
+                    )
+                elif mode == "off":
+                    self.config["auto_checkin_enabled"] = False
+                    self.config.save_config()
+                    if getattr(self.scheduler, "running", False):
+                        self.scheduler.shutdown(wait=False)
+                    yield event.plain_result("已关闭每日自动签到。")
+                else:
+                    client = await self._ensure_client()
+                    result = await asyncio.to_thread(client.checkin)
+                    yield event.plain_result(f"✅ 签到结果：\n{self._fmt(result)}")
             elif action == "项目":
                 client = await self._ensure_client()
                 projects = await asyncio.to_thread(client.list_projects)
@@ -505,7 +555,8 @@ class MonkeyCodePlugin(Star):
             "/mc 可用模型        列出可用模型\n"
             "/mc Issue <项目ID> <标题>  创建 Issue\n"
             "/mc 评论 <项目ID> <IssueID> <内容>  评论 Issue\n"
-            "/mc 自动批准 <任务ID> / 取消自动批准 <任务ID>\n\n"
+            "/mc 自动批准 <任务ID> / 取消自动批准 <任务ID>\n"
+            "/mc 签到 on [小时] / off   开启/关闭每日自动签到\n\n"
             "也可直接对我说：用 MonkeyCode 帮我 <任务描述>"
         )
 
@@ -564,6 +615,8 @@ class MonkeyCodePlugin(Star):
             yield event.plain_result(f"MonkeyCode 回复失败：{e}")
 
     async def terminate(self):
+        if getattr(self.scheduler, "running", False):
+            self.scheduler.shutdown(wait=False)
         if self._client is not None:
             try:
                 self._client.close()
