@@ -1,0 +1,38 @@
+{
+  "email": {
+    "description": "MonkeyCode 账号邮箱",
+    "type": "string",
+    "default": "",
+    "secret": true,
+    "hint": "云平台账号邮箱（不是学号）"
+  },
+  "password": {
+    "description": "MonkeyCode 账号密码",
+    "type": "string",
+    "default": "",
+    "secret": true,
+    "hint": "云平台密码，明文传输由 SDK 处理"
+  },
+  "base_url": {
+    "description": "MonkeyCode API 地址",
+    "type": "string",
+    "default": "https://monkeycode-ai.com",
+    "hint": "自托管部署填自己的域名"
+  },
+  "default_repo_url": {
+    "description": "默认 GitHub 仓库 URL（提交任务时可用）",
+    "type": "string",
+    "default": ""
+  },
+  "default_branch": {
+    "description": "默认仓库分支",
+    "type": "string",
+    "default": "main"
+  },
+  "skill_ids": {
+    "description": "默认技能列表（逗号分隔，可选）",
+    "type": "string",
+    "default": "",
+    "hint": "如 feature-design,project-wiki,feature-implementer,implementation-planner"
+  }
+}
