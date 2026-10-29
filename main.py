@@ -33,7 +33,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.9.1",
+    "1.10.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -81,7 +81,7 @@ class MonkeyCodePlugin(Star):
     # ---------- 客户端懒登录 ----------
 
     async def _ensure_client(self) -> MonkeyCodeClient:
-        """获取已登录的 SDK 客户端（懒登录 + 缓存）。"""
+        """获取已登录的 SDK 客户端（懒登录 + 缓存 + 会话持久化）。"""
         if self._client is not None:
             return self._client
         email = str(self._cfg("email", "") or "").strip()
@@ -92,10 +92,26 @@ class MonkeyCodePlugin(Star):
         async with self._login_lock:
             if self._client is not None:
                 return self._client
-            client = MonkeyCodeClient(email=email, password=password, base_url=base_url)
-            await asyncio.to_thread(client.login)
+            import tempfile
+
+            session_path = str(self._cfg("session_path", "") or "").strip()
+            if not session_path:
+                session_path = os.path.join(
+                    tempfile.gettempdir(),
+                    "astrbot_plugin_monkeycode_session.json",
+                )
+            client = MonkeyCodeClient(
+                email=email,
+                password=password,
+                base_url=base_url,
+                session_path=session_path,
+            )
+            if not client.is_logged_in():
+                await asyncio.to_thread(client.login)
+                logger.info(f"[{PLUGIN_NAME}] 登录成功（{base_url}）")
+            else:
+                logger.info(f"[{PLUGIN_NAME}] 使用持久化会话（{base_url}）")
             self._client = client
-            logger.info(f"[{PLUGIN_NAME}] 登录成功（{base_url}）")
             return client
 
     async def _send(self, origin: str, text: str) -> None:
