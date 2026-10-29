@@ -13,6 +13,7 @@
 LLM 工具：use_monkeycode —— 用户说「用 MonkeyCode 帮我...」时自动调用。
 """
 import asyncio
+import json
 import re
 from typing import Any
 
@@ -199,6 +200,48 @@ class MonkeyCodePlugin(Star):
                 yield event.plain_result(
                     f"✅ 已向任务 {task_id} 发送消息。\n收到事件：\n{summary}"
                 )
+            elif action == "钱包":
+                client = await self._ensure_client()
+                wallet = await asyncio.to_thread(client.get_wallet)
+                yield event.plain_result(f"💰 钱包信息：\n{self._fmt(wallet)}")
+            elif action == "签到":
+                client = await self._ensure_client()
+                result = await asyncio.to_thread(client.checkin)
+                yield event.plain_result(f"✅ 签到结果：\n{self._fmt(result)}")
+            elif action == "项目":
+                client = await self._ensure_client()
+                projects = await asyncio.to_thread(client.list_projects)
+                if not projects:
+                    yield event.plain_result("暂无项目。")
+                else:
+                    lines = ["📁 项目列表："]
+                    for p in projects[:10]:
+                        name = p.get("name") or p.get("repo_url") or p.get("id")
+                        lines.append(f"  · {name}（{p.get('id')}）")
+                    yield event.plain_result("\n".join(lines))
+            elif action == "Git身份":
+                client = await self._ensure_client()
+                ids = await asyncio.to_thread(client.list_git_identities)
+                lines = ["🔑 Git 身份："]
+                if not ids:
+                    lines.append("  （无）")
+                for it in ids[:10]:
+                    lines.append(
+                        f"  · {it.get('username') or it.get('email') or it.get('id')} "
+                        f"[{it.get('platform')}]"
+                    )
+                yield event.plain_result("\n".join(lines))
+            elif action == "GitBots":
+                client = await self._ensure_client()
+                bots = await asyncio.to_thread(client.list_git_bots)
+                lines = ["🤖 Git Bots："]
+                if not bots:
+                    lines.append("  （无）")
+                for b in bots[:10]:
+                    lines.append(
+                        f"  · {b.get('name') or b.get('id')} [{b.get('platform')}]"
+                    )
+                yield event.plain_result("\n".join(lines))
             else:
                 yield event.plain_result(self._help_text())
         except Exception as e:
@@ -242,9 +285,20 @@ class MonkeyCodePlugin(Star):
             "/mc 任务 <内容>      提交编程任务（后台执行，完成后通知）\n"
             "/mc 回复 <任务ID> <内容>  向运行中的任务发送消息，让 agent 继续执行\n"
             "/mc 任务列表         最近任务\n"
-            "/mc 停止 <任务ID>    停止任务\n\n"
+            "/mc 停止 <任务ID>    停止任务\n"
+            "/mc 钱包 / 签到       查询积分、每日签到\n"
+            "/mc 项目             项目列表\n"
+            "/mc Git身份           Git 身份列表\n"
+            "/mc GitBots         Git Bots 列表\n\n"
             "也可直接对我说：用 MonkeyCode 帮我 <任务描述>"
         )
+
+    @staticmethod
+    def _fmt(obj: Any) -> str:
+        """把响应格式化为可读文本。"""
+        if isinstance(obj, (dict, list)):
+            return json.dumps(obj, ensure_ascii=False, indent=2, default=str)[:1000]
+        return str(obj)
 
     # ---------- LLM 工具 ----------
 

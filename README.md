@@ -27,6 +27,10 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 /mc 回复 <任务ID> <内容>  向运行中的任务发送消息，让 agent 继续执行
 /mc 任务列表           最近任务
 /mc 停止 <任务ID>      停止任务
+/mc 钱包 / 签到        查询积分、每日签到
+/mc 项目              项目列表
+/mc Git身份            Git 身份列表
+/mc GitBots          Git Bots 列表
 ```
 
 示例：
