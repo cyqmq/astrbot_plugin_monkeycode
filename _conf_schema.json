@@ -34,5 +34,22 @@
     "type": "string",
     "default": "",
     "hint": "如 feature-design,project-wiki,feature-implementer,implementation-planner"
+  },
+  "summary_enabled": {
+    "description": "启用 LLM 生成任务摘要",
+    "type": "bool",
+    "default": false,
+    "hint": "默认关闭：使用 MonkeyCode 平台返回的原始摘要，零 token 消耗"
+  },
+  "summary_provider_id": {
+    "description": "摘要专用小模型的 provider_id",
+    "type": "string",
+    "default": "",
+    "hint": "在 AstrBot「模型提供商」里添加小模型后，把它的 provider_id 填到这里；留空则即使开启也回退到平台摘要"
+  },
+  "summary_prompt": {
+    "description": "摘要小模型人格/指令",
+    "type": "text",
+    "default": "你是一个代码任务摘要助手。请用简洁的中文，3 句话以内总结以下 MonkeyCode 任务日志的核心内容：做了什么、结果如何、有什么需要注意。不要编造。"
   }
 }

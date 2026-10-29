@@ -149,20 +149,45 @@ class MonkeyCodePlugin(Star):
             result = await asyncio.to_thread(
                 client.wait_task, task_id, timeout=3600, interval=15
             )
+            summary = await self._summarize(result)
             text = (
                 f"⚡ MonkeyCode 任务完成\n"
                 f"任务ID：{task_id}\n状态：{result.status}"
             )
             if result.pr_url:
                 text += f"\nPR：{result.pr_url}"
-            if result.summary:
-                text += f"\n摘要：{result.summary[:200]}"
+            if summary:
+                text += f"\n摘要：{summary[:200]}"
             text += "\n完整日志已发送为 md 文件。"
             await self._send(origin, text)
             md = await asyncio.to_thread(self._build_task_md, client, task_id, result)
             await self._send_markdown(origin, f"mc-{task_id[:8]}.md", md)
         except Exception as e:
             await self._send(origin, f"❌ MonkeyCode 任务 {task_id} 失败：{e}")
+
+    async def _summarize(self, result: Any) -> str:
+        """生成简短摘要。
+
+        summary_enabled=False 或未配置小模型时，返回平台原始 summary（零 token）；
+        开启且配置了 summary_provider_id 时，调用指定小模型生成摘要（不碰主模型）。
+        """
+        if not self._cfg("summary_enabled", False):
+            return str(getattr(result, "summary", "") or "")
+        provider_id = str(self._cfg("summary_provider_id", "") or "").strip()
+        if not provider_id:
+            return str(getattr(result, "summary", "") or "")
+        prompt = str(self._cfg("summary_prompt", "") or "")
+        content = str(getattr(result, "content", "") or "")[:2000]
+        try:
+            llm_resp = await self.context.llm_generate(
+                chat_provider_id=provider_id,
+                prompt=(prompt + "\n\n" + content if content else prompt),
+            )
+            text = getattr(llm_resp, "completion_text", "") or ""
+            return str(text).strip()[:500]
+        except Exception as e:
+            logger.error(f"[{PLUGIN_NAME}] 小模型摘要失败: {e}")
+            return str(getattr(result, "summary", "") or "")
 
     def _build_task_md(self, client: Any, task_id: str, result: Any) -> str:
         """把任务详情与执行轮次整理成 Markdown 文本。"""

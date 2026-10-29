@@ -17,6 +17,13 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 | `default_repo_url` | 默认 GitHub 仓库 URL（**可留空：不绑定仓库也能创建任务**） |
 | `default_branch` | 默认分支（`main`） |
 | `skill_ids` | 默认技能列表（逗号分隔，可选） |
+| `summary_enabled` | 启用 LLM 生成任务摘要（默认关闭，用平台原始摘要，零 token） |
+| `summary_provider_id` | 摘要专用小模型的 provider_id（在 AstrBot 模型提供商里添加后填这里） |
+| `summary_prompt` | 摘要小模型人格/指令（默认中文简洁摘要） |
+
+> 摘要说明：默认**不调用任何模型**，直接使用 MonkeyCode 平台返回的原始摘要。
+> 开启 `summary_enabled` 并填写 `summary_provider_id` 后，才会调用你指定的小模型生成摘要，
+> **不会**使用 AstrBot 主模型。
 
 ## 命令
 

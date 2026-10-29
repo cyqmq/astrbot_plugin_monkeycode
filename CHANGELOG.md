@@ -1,5 +1,13 @@
 # 更新日志
 
+## [v1.5.0] - 2026-10-25
+
+### 新增
+- **小模型摘要**：可配置 `summary_enabled` / `summary_provider_id` / `summary_prompt`
+  - 默认关闭：使用 MonkeyCode 平台原始摘要，**零 token 消耗**
+  - 开启后仅调用指定的小模型生成摘要，不碰 AstrBot 主模型
+- 新增 `_summarize`：根据配置生成简短摘要，失败自动回退平台摘要
+
 ## [v1.4.0] - 2026-10-25
 
 ### 新增
