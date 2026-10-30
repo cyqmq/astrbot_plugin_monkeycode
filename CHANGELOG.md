@@ -1,5 +1,10 @@
 # 更新日志
 
+## [v1.10.1] - 2026-10-30
+
+### 变更
+- SDK 依赖从 GitHub 仓库切换为 PyPI：`monkeycode-sdk>=1.7.1`，安装更稳定（`pip install monkeycode-sdk`）
+
 ## [v1.10.0] - 2026-10-29
 
 ### 新增
