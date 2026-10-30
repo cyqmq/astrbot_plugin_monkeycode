@@ -33,7 +33,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.10.2",
+    "1.10.3",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):

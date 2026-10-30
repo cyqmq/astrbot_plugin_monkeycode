@@ -1,5 +1,10 @@
 # 更新日志
 
+## [v1.10.3] - 2026-10-30
+
+### 新增
+- `summary_provider_id` 配置项改用 `_special: "select_provider"`：AstrBot WebUI 渲染为 LLM 提供商下拉框，直接选择即可，无需手动复制 provider_id
+
 ## [v1.10.2] - 2026-10-30
 
 ### 修复

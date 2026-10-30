@@ -48,10 +48,11 @@
     "hint": "默认关闭：使用 MonkeyCode 平台返回的原始摘要，零 token。开启后每次摘要都是独立调用，不保留多轮历史，上下文只有人格+本次任务内容"
   },
   "summary_provider_id": {
-    "description": "摘要专用小模型的 provider_id",
+    "description": "摘要专用小模型提供商",
     "type": "string",
     "default": "",
-    "hint": "在 AstrBot「模型提供商」里添加小模型后，把它的 provider_id 填到这里；留空则即使开启也回退到平台摘要"
+    "_special": "select_provider",
+    "hint": "从下拉列表选择一个小模型提供商；留空则即使开启也回退到平台摘要"
   },
   "summary_prompt": {
     "description": "摘要小模型人格/指令",
