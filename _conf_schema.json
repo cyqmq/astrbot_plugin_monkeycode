@@ -46,17 +46,19 @@
     "description": "默认宿主 ID（留空用平台默认）",
     "type": "string",
     "default": "",
-    "hint": "一般无需填写；多宿主环境可指定"
+    "hint": "留空用平台默认；列表会变化，可用 /mc 环境 查询最新宿主 ID 后手动填写"
   },
   "default_image_id": {
     "description": "默认镜像 ID（留空自动取第一个）",
     "type": "string",
-    "default": ""
+    "default": "",
+    "hint": "镜像列表会变化（新建镜像后不在下拉中），可用 /mc 环境 查询最新镜像 ID 后手动填写"
   },
   "default_model_id": {
     "description": "默认模型 ID（留空自动取第一个）",
     "type": "string",
-    "default": ""
+    "default": "",
+    "hint": "模型列表会变化，可用 /mc 环境 查询最新模型 ID 后手动填写"
   },
   "task_timeout_seconds": {
     "description": "任务轮询超时（秒）",
