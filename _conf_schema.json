@@ -35,6 +35,13 @@
     "type": "string",
     "default": "main"
   },
+  "default_cli_name": {
+    "description": "默认 agent CLI",
+    "type": "select",
+    "options": ["opencode", "codex", "claude"],
+    "default": "opencode",
+    "hint": "创建任务时使用的 agent CLI（平台支持 opencode/codex/claude）"
+  },
   "default_host_id": {
     "description": "默认宿主 ID（留空用平台默认）",
     "type": "string",

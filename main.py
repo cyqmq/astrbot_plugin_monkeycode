@@ -34,7 +34,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.10.6",
+    "1.11.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -203,6 +203,11 @@ class MonkeyCodePlugin(Star):
             "repo": repo,
             "skill_ids": skill_ids,
         }
+        cli_name = str(
+            self._cfg("default_cli_name", "opencode") or "opencode"
+        ).strip()
+        if cli_name in ("opencode", "codex", "claude"):
+            kwargs["cli_name"] = cli_name
         host_id = str(self._cfg("default_host_id", "") or "").strip()
         image_id = str(self._cfg("default_image_id", "") or "").strip()
         model_id = str(self._cfg("default_model_id", "") or "").strip()
@@ -578,6 +583,110 @@ class MonkeyCodePlugin(Star):
                 async with client.open_task_stream(task_id, mode="attach") as stream:
                     await stream.send_auto_approve(False)
                 yield event.plain_result(f"已关闭任务 {task_id} 的自动批准。")
+            elif action == "任务详情":
+                if len(args) < 2:
+                    yield event.plain_result("用法：/mc 任务详情 <任务ID>")
+                    return
+                task_id = args[1]
+                client = await self._ensure_client()
+                task = await asyncio.to_thread(client.get_task, task_id)
+                t = task.raw if hasattr(task, "raw") else task
+                lines = [
+                    f"📋 任务 {task_id}",
+                    f"状态：{t.get('status', '')}",
+                    f"内容：{str(t.get('content') or '')[:200]}",
+                ]
+                if t.get("model"):
+                    m = t["model"]
+                    lines.append(f"模型：{m.get('model') or m.get('id')}")
+                if t.get("repo_url"):
+                    lines.append(f"仓库：{t.get('repo_url')}")
+                if t.get("pr_url"):
+                    lines.append(f"PR：{t.get('pr_url')}")
+                yield event.plain_result("\n".join(lines))
+            elif action == "用户输入":
+                if len(args) < 2:
+                    yield event.plain_result("用法：/mc 用户输入 <任务ID>")
+                    return
+                task_id = args[1]
+                client = await self._ensure_client()
+                data = await asyncio.to_thread(
+                    client.get_task_user_inputs, task_id, limit=20
+                )
+                items = data.get("items", []) if isinstance(data, dict) else (data or [])
+                if not items:
+                    yield event.plain_result("该任务暂无用户输入记录。")
+                else:
+                    lines = ["💬 用户输入："]
+                    for it in items[:10]:
+                        content = str(it.get("content") or "")[:120]
+                        lines.append(f"  · {content}")
+                    yield event.plain_result("\n".join(lines))
+            elif action == "交易记录":
+                client = await self._ensure_client()
+                data = await asyncio.to_thread(client.get_wallet_transactions)
+                tx = data.get("transactions", []) if isinstance(data, dict) else (data or [])
+                if not tx:
+                    yield event.plain_result("暂无交易记录。")
+                else:
+                    lines = ["💳 最近交易："]
+                    for it in tx[:10]:
+                        amount = it.get("amount", "")
+                        remark = str(it.get("remark") or it.get("kind") or "")[:80]
+                        lines.append(f"  · {amount} {remark}")
+                    yield event.plain_result("\n".join(lines))
+            elif action == "文件下载":
+                if len(args) < 4:
+                    yield event.plain_result("用法：/mc 文件下载 <VMID> <路径> <文件名>")
+                    return
+                vm_id, path, filename = args[1], args[2], args[3]
+                client = await self._ensure_client()
+                data = await asyncio.to_thread(
+                    client.download_file, vm_id, path, filename
+                )
+                import tempfile
+
+                from astrbot.api.message_components import File as CompFile
+
+                fname = os.path.basename(filename) or "file"
+                tmp = os.path.join(tempfile.gettempdir(), fname)
+                with open(tmp, "wb") as f:
+                    f.write(data)
+                chain = MessageChain().message(CompFile(file=tmp, name=fname))
+                await self.context.send_message(event.unified_msg_origin, chain)
+                yield event.plain_result(f"✅ 已发送文件 {filename}。")
+            elif action == "换模型":
+                if len(args) < 2:
+                    yield event.plain_result("用法：/mc 换模型 <任务ID> <模型ID>")
+                    return
+                task_id, model_id = args[1], args[2]
+                client = await self._ensure_client()
+                res = await client.switch_task_model(task_id, model_id, timeout=30)
+                ok = res.get("success") if isinstance(res, dict) else False
+                msg = (
+                    res.get("message") or res.get("error")
+                    if isinstance(res, dict)
+                    else str(res)
+                )
+                yield event.plain_result(
+                    f"{'✅ 已切换模型' if ok else '❌ 切换模型失败'}：{msg}"
+                )
+            elif action == "重启":
+                if len(args) < 2:
+                    yield event.plain_result("用法：/mc 重启 <任务ID>")
+                    return
+                task_id = args[1]
+                client = await self._ensure_client()
+                res = await client.restart_task(task_id, load_session=True, timeout=30)
+                ok = res.get("success") if isinstance(res, dict) else False
+                msg = (
+                    res.get("message") or res.get("error")
+                    if isinstance(res, dict)
+                    else str(res)
+                )
+                yield event.plain_result(
+                    f"{'✅ 已重启任务' if ok else '❌ 重启失败'}：{msg}"
+                )
             else:
                 yield event.plain_result(self._help_text())
         except Exception as e:
@@ -636,6 +745,12 @@ class MonkeyCodePlugin(Star):
             "/mc Issue <项目ID> <标题>  创建 Issue\n"
             "/mc 评论 <项目ID> <IssueID> <内容>  评论 Issue\n"
             "/mc 自动批准 <任务ID> / 取消自动批准 <任务ID>\n"
+            "/mc 任务详情 <任务ID>      查看任务状态/内容/模型\n"
+            "/mc 用户输入 <任务ID>      查看 agent 等待的用户输入\n"
+            "/mc 换模型 <任务ID> <模型ID>  切换运行中任务模型\n"
+            "/mc 重启 <任务ID>          重启任务\n"
+            "/mc 交易记录              积分流水\n"
+            "/mc 文件下载 <VMID> <路径> <文件名>  下载任务产物文件\n"
             "/mc 签到 on [小时] / off   开启/关闭每日自动签到\n\n"
             "也可直接对我说：用 MonkeyCode 帮我 <任务描述>"
         )
