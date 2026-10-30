@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>MonkeyCode 高级设置</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <h1 id="heading">MonkeyCode 高级设置</h1>
+    <p class="desc" id="desc">配置默认任务档位、轮询参数、日志与签到行为。保存后立即生效。</p>
+
+    <section>
+      <h2>任务默认值</h2>
+      <div class="field">
+        <label for="default_repo_url">默认 GitHub 仓库 URL</label>
+        <input type="text" id="default_repo_url" placeholder="留空：不绑定仓库也能创建任务" />
+      </div>
+      <div class="field">
+        <label for="default_branch">默认分支</label>
+        <input type="text" id="default_branch" placeholder="main" />
+      </div>
+      <div class="field">
+        <label for="default_cli_name">默认 agent CLI</label>
+        <select id="default_cli_name">
+          <option value="opencode">opencode</option>
+          <option value="codex">codex</option>
+          <option value="claude">claude</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="default_host_id">默认宿主 ID</label>
+        <input type="text" id="default_host_id" placeholder="留空用平台默认；/mc 环境 可查" />
+      </div>
+      <div class="field">
+        <label for="default_image_id">默认镜像 ID</label>
+        <input type="text" id="default_image_id" placeholder="留空自动取第一个；/mc 环境 可查" />
+      </div>
+      <div class="field">
+        <label for="default_model_id">默认模型 ID</label>
+        <input type="text" id="default_model_id" placeholder="留空自动取第一个；/mc 环境 可查" />
+      </div>
+      <div class="field">
+        <label for="skill_ids">默认技能列表</label>
+        <input type="text" id="skill_ids" placeholder="逗号分隔，如 feature-design,project-wiki" />
+      </div>
+    </section>
+
+    <section>
+      <h2>任务轮询与日志</h2>
+      <div class="field">
+        <label for="task_timeout_seconds">轮询超时（秒）</label>
+        <input type="number" id="task_timeout_seconds" min="60" max="10800" step="60" />
+      </div>
+      <div class="field">
+        <label for="task_poll_interval">轮询间隔（秒）</label>
+        <input type="number" id="task_poll_interval" min="5" max="120" step="5" />
+      </div>
+      <div class="field check">
+        <label for="send_md_on_end">任务完成时发送完整日志 md 文件</label>
+        <input type="checkbox" id="send_md_on_end" />
+      </div>
+    </section>
+
+    <section>
+      <h2>摘要</h2>
+      <div class="field">
+        <label for="summary_prompt">摘要小模型人格/指令</label>
+        <textarea id="summary_prompt" rows="4"></textarea>
+      </div>
+    </section>
+
+    <section>
+      <h2>会话与签到</h2>
+      <div class="field">
+        <label for="session_path">登录会话持久化文件路径</label>
+        <input type="text" id="session_path" placeholder="留空：插件数据目录" />
+      </div>
+      <div class="field">
+        <label for="auto_checkin_hour">每日自动签到时间（小时 0-23）</label>
+        <input type="number" id="auto_checkin_hour" min="0" max="23" step="1" />
+      </div>
+    </section>
+
+    <div class="actions">
+      <button id="save">保存设置</button>
+      <span id="status" class="status"></span>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

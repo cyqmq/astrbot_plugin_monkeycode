@@ -23,67 +23,90 @@
     "description": "登录会话持久化文件路径（留空自动使用插件数据目录）",
     "type": "string",
     "default": "",
-    "hint": "留空保存到 data/plugin_data/astrbot_plugin_monkeycode/session.json；也可自定义路径"
+    "hint": "留空保存到 data/plugin_data/astrbot_plugin_monkeycode/session.json；也可自定义路径",
+    "invisible": true
   },
   "default_repo_url": {
     "description": "默认 GitHub 仓库 URL（提交任务时可用）",
     "type": "string",
-    "default": ""
+    "default": "",
+    "invisible": true
   },
   "default_branch": {
     "description": "默认仓库分支",
     "type": "string",
-    "default": "main"
+    "default": "main",
+    "invisible": true
   },
   "default_cli_name": {
     "description": "默认 agent CLI",
     "type": "string",
-    "options": ["opencode", "codex", "claude"],
+    "options": [
+      "opencode",
+      "codex",
+      "claude"
+    ],
     "default": "opencode",
-    "hint": "创建任务时使用的 agent CLI（平台支持 opencode/codex/claude）"
+    "hint": "创建任务时使用的 agent CLI（平台支持 opencode/codex/claude）",
+    "invisible": true
   },
   "default_host_id": {
     "description": "默认宿主 ID（留空用平台默认）",
     "type": "string",
     "default": "",
-    "hint": "留空用平台默认；列表会变化，可用 /mc 环境 查询最新宿主 ID 后手动填写"
+    "hint": "留空用平台默认；列表会变化，可用 /mc 环境 查询最新宿主 ID 后手动填写",
+    "invisible": true
   },
   "default_image_id": {
     "description": "默认镜像 ID（留空自动取第一个）",
     "type": "string",
     "default": "",
-    "hint": "镜像列表会变化（新建镜像后不在下拉中），可用 /mc 环境 查询最新镜像 ID 后手动填写"
+    "hint": "镜像列表会变化（新建镜像后不在下拉中），可用 /mc 环境 查询最新镜像 ID 后手动填写",
+    "invisible": true
   },
   "default_model_id": {
     "description": "默认模型 ID（留空自动取第一个）",
     "type": "string",
     "default": "",
-    "hint": "模型列表会变化，可用 /mc 环境 查询最新模型 ID 后手动填写"
+    "hint": "模型列表会变化，可用 /mc 环境 查询最新模型 ID 后手动填写",
+    "invisible": true
   },
   "task_timeout_seconds": {
     "description": "任务轮询超时（秒）",
     "type": "int",
     "default": 3600,
-    "slider": {"min": 60, "max": 10800, "step": 60},
-    "hint": "任务超过该时长未结束则报超时"
+    "slider": {
+      "min": 60,
+      "max": 10800,
+      "step": 60
+    },
+    "hint": "任务超过该时长未结束则报超时",
+    "invisible": true
   },
   "task_poll_interval": {
     "description": "任务轮询间隔（秒）",
     "type": "int",
     "default": 15,
-    "slider": {"min": 5, "max": 120, "step": 5}
+    "slider": {
+      "min": 5,
+      "max": 120,
+      "step": 5
+    },
+    "invisible": true
   },
   "send_md_on_end": {
     "description": "任务完成时发送完整日志 md 文件",
     "type": "bool",
     "default": true,
-    "hint": "关闭后只发短通知，不发完整日志文件"
+    "hint": "关闭后只发短通知，不发完整日志文件",
+    "invisible": true
   },
   "skill_ids": {
     "description": "默认技能列表（逗号分隔，可选）",
     "type": "string",
     "default": "",
-    "hint": "如 feature-design,project-wiki,feature-implementer,implementation-planner"
+    "hint": "如 feature-design,project-wiki,feature-implementer,implementation-planner",
+    "invisible": true
   },
   "summary_enabled": {
     "description": "启用 LLM 生成任务摘要",
@@ -102,7 +125,8 @@
     "description": "摘要小模型人格/指令",
     "type": "text",
     "default": "你是一个代码任务摘要助手。请用简洁的中文，3 句话以内总结以下 MonkeyCode 任务日志的核心内容：做了什么、结果如何、有什么需要注意。不要编造。",
-    "hint": "这段人格会作为每次摘要的唯一系统上下文（无历史对话累积）"
+    "hint": "这段人格会作为每次摘要的唯一系统上下文（无历史对话累积）",
+    "invisible": true
   },
   "auto_checkin_enabled": {
     "description": "开启每日自动签到",
@@ -114,7 +138,12 @@
     "description": "自动签到时间（小时，0-23）",
     "type": "int",
     "default": 8,
-    "slider": {"min": 0, "max": 23, "step": 1}
+    "slider": {
+      "min": 0,
+      "max": 23,
+      "step": 1
+    },
+    "invisible": true
   },
   "auto_checkin_origin": {
     "description": "自动签到结果推送的会话（用 /mc 签到 on 自动设置）",

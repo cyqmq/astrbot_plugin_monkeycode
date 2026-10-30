@@ -1,5 +1,12 @@
 # 更新日志
 
+## [v1.12.0] - 2026-10-30
+
+### 新增
+- **插件可视化视图**：新增 `views/settings/` 高级设置页面（通过 `window.AstrBotPluginView` bridge 与后端通信）
+- **配置分层**：配置页只保留基础项（账号/API 地址/摘要开关/摘要提供商/签到开关），高级配置（默认档位/技能/轮询/日志/摘要人格/会话路径/签到时间）移到「MonkeyCode 高级设置」视图
+- 后端新增 Web API：`GET /astrbot_plugin_monkeycode/settings`（读取高级配置）、`POST /astrbot_plugin_monkeycode/settings/save`（保存）
+
 ## [v1.11.3] - 2026-10-30
 
 ### 增强

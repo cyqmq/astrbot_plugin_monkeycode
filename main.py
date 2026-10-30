@@ -23,6 +23,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.star import Context, Star, register
+from astrbot.api.web import error_response, json_response, request
 
 from monkeycode import MonkeyCodeClient
 from monkeycode.models import RepoReq
@@ -34,7 +35,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.11.3",
+    "1.12.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -43,6 +44,67 @@ class MonkeyCodePlugin(Star):
         self._client: MonkeyCodeClient | None = None
         self._login_lock = asyncio.Lock()
         self.scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+        self._register_web_apis()
+
+    def _register_web_apis(self) -> None:
+        """注册插件视图（views/settings）使用的后端 API。"""
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/settings",
+            self.view_get_settings,
+            ["GET"],
+            "获取 MonkeyCode 高级配置",
+        )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/settings/save",
+            self.view_save_settings,
+            ["POST"],
+            "保存 MonkeyCode 高级配置",
+        )
+
+    async def view_get_settings(self):
+        """返回当前高级配置值（供视图表单填充）。"""
+        keys = [
+            "default_repo_url",
+            "default_branch",
+            "default_cli_name",
+            "default_host_id",
+            "default_image_id",
+            "default_model_id",
+            "skill_ids",
+            "task_timeout_seconds",
+            "task_poll_interval",
+            "send_md_on_end",
+            "summary_prompt",
+            "session_path",
+            "auto_checkin_hour",
+        ]
+        return json_response({k: self._cfg(k, "") for k in keys})
+
+    async def view_save_settings(self):
+        """保存视图提交的高级配置。"""
+        payload = await request.json(default={})
+        if not isinstance(payload, dict):
+            return error_response("请求体必须是 JSON 对象", status_code=400)
+        keys = [
+            "default_repo_url",
+            "default_branch",
+            "default_cli_name",
+            "default_host_id",
+            "default_image_id",
+            "default_model_id",
+            "skill_ids",
+            "task_timeout_seconds",
+            "task_poll_interval",
+            "send_md_on_end",
+            "summary_prompt",
+            "session_path",
+            "auto_checkin_hour",
+        ]
+        for k in keys:
+            if k in payload:
+                self.config[k] = payload[k]
+        self.config.save_config()
+        return json_response({"saved": True})
 
     async def initialize(self):
         """插件初始化：启动每日自动签到（若开启）。"""

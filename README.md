@@ -7,27 +7,19 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 
 1. 将本目录放到 AstrBot 的 `data/plugins/astrbot_plugin_monkeycode/`。
 2. 在 AstrBot 管理面板「插件」页刷新/重载插件（首次会通过 pip 安装依赖 `monkeycode-sdk`，已发布到 PyPI）。
-3. 在「插件配置」中填写：
+3. 在「插件配置」中填写基础配置：
 
 | 配置项 | 说明 |
 |---|---|
 | `email` | MonkeyCode 账号邮箱 |
 | `password` | MonkeyCode 账号密码 |
 | `base_url` | API 地址（云平台默认 `https://monkeycode-ai.com`；自托管填自己域名） |
-| `session_path` | 登录会话持久化文件路径（留空保存到 `data/plugin_data/astrbot_plugin_monkeycode/session.json`） |
-| `default_repo_url` | 默认 GitHub 仓库 URL（**可留空：不绑定仓库也能创建任务**） |
-| `default_branch` | 默认分支（`main`） |
-| `default_cli_name` | 默认 agent CLI（`opencode` / `codex` / `claude`，默认 `opencode`） |
-| `default_host_id` | 默认宿主 ID（留空用平台默认；可用 `/mc 环境` 查最新 ID 后填写） |
-| `default_image_id` | 默认镜像 ID（留空自动取第一个；新建镜像后用 `/mc 环境` 查 ID 填写） |
-| `default_model_id` | 默认模型 ID（留空自动取第一个；可用 `/mc 环境` 查最新 ID 填写） |
-| `skill_ids` | 默认技能列表（逗号分隔，可选） |
-| `task_timeout_seconds` | 任务轮询超时（秒，默认 3600） |
-| `task_poll_interval` | 任务轮询间隔（秒，默认 15） |
-| `send_md_on_end` | 任务完成时发送完整日志 md 文件（默认开） |
 | `summary_enabled` | 启用 LLM 生成任务摘要（默认关闭，用平台原始摘要，零 token） |
-| `summary_provider_id` | 摘要专用小模型提供商（配置界面下拉选择，或手动填 provider_id） |
-| `summary_prompt` | 摘要小模型人格/指令（默认中文简洁摘要） |
+| `summary_provider_id` | 摘要专用小模型提供商（配置界面下拉选择） |
+| `auto_checkin_enabled` | 开启每日自动签到（默认关闭） |
+
+> 高级配置（默认仓库/分支/CLI/宿主/镜像/模型/技能、轮询参数、日志开关、摘要人格、
+> 会话持久化路径、自动签到时间）请在插件详情页打开 **「MonkeyCode 高级设置」视图** 中配置。
 
 > 摘要说明：默认**不调用任何模型**，直接使用 MonkeyCode 平台返回的原始摘要。
 > 开启 `summary_enabled` 并填写 `summary_provider_id` 后，才会调用你指定的小模型生成摘要。
