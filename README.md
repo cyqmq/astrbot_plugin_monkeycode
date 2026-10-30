@@ -17,6 +17,7 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 | `session_path` | 登录会话持久化文件路径（留空保存到 `data/plugin_data/astrbot_plugin_monkeycode/session.json`） |
 | `default_repo_url` | 默认 GitHub 仓库 URL（**可留空：不绑定仓库也能创建任务**） |
 | `default_branch` | 默认分支（`main`） |
+| `default_cli_name` | 默认 agent CLI（`opencode` / `codex` / `claude`，默认 `opencode`） |
 | `default_host_id` | 默认宿主 ID（留空用平台默认） |
 | `default_image_id` | 默认镜像 ID（留空自动取第一个） |
 | `default_model_id` | 默认模型 ID（留空自动取第一个） |

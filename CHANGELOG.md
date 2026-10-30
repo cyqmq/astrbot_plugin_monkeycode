@@ -1,5 +1,10 @@
 # 更新日志
 
+## [v1.11.1] - 2026-10-30
+
+### 修复
+- `default_cli_name` 配置类型由不支持的 `select` 改为 `string`（AstrBot 支持类型不含 select），hint 注明可选值 opencode/codex/claude，代码侧已有合法性校验
+
 ## [v1.11.0] - 2026-10-30
 
 ### 新增

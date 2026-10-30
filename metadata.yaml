@@ -1,6 +1,6 @@
 name: astrbot_plugin_monkeycode # 插件唯一识别名，以 astrbot_plugin_ 前缀开头
 display_name: MonkeyCode 编程助手
 desc: 通过 MonkeyCode 云平台提交 AI 编程任务并跟踪结果。基于 monkeycode-sdk，自动处理 PoW 验证码，支持自托管。
-version: v1.11.0
+version: v1.11.1
 author: cyqmq
 repo: https://github.com/cyqmq/astrbot_plugin_monkeycode
