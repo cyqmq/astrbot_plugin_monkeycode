@@ -4,7 +4,7 @@
     "type": "string",
     "default": "",
     "secret": true,
-    "hint": "云平台账号邮箱（不是学号）"
+    "hint": "云平台账号邮箱"
   },
   "password": {
     "description": "MonkeyCode 账号密码",
