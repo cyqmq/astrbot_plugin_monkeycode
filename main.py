@@ -33,7 +33,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.10.4",
+    "1.10.5",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -80,6 +80,30 @@ class MonkeyCodePlugin(Star):
 
     # ---------- 客户端懒登录 ----------
 
+    def _default_session_path(self) -> str:
+        """返回 AstrBot 规范要求的插件数据目录下的会话文件路径。
+
+        持久化数据（含登录会话 Cookie）应保存到
+        data/plugin_data/<插件名>/，而不是系统临时目录。
+        """
+        try:
+            from pathlib import Path
+
+            from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+
+            plugin_name = getattr(self, "name", None) or PLUGIN_NAME
+            data_dir = Path(get_astrbot_data_path()) / "plugin_data" / plugin_name
+            data_dir.mkdir(parents=True, exist_ok=True)
+            return str(data_dir / "session.json")
+        except Exception:
+            # 极低版本 AstrBot 兜底：回退到系统临时目录
+            import tempfile
+
+            return os.path.join(
+                tempfile.gettempdir(),
+                "astrbot_plugin_monkeycode_session.json",
+            )
+
     async def _ensure_client(self) -> MonkeyCodeClient:
         """获取已登录的 SDK 客户端（懒登录 + 缓存 + 会话持久化）。"""
         if self._client is not None:
@@ -92,14 +116,9 @@ class MonkeyCodePlugin(Star):
         async with self._login_lock:
             if self._client is not None:
                 return self._client
-            import tempfile
-
             session_path = str(self._cfg("session_path", "") or "").strip()
             if not session_path:
-                session_path = os.path.join(
-                    tempfile.gettempdir(),
-                    "astrbot_plugin_monkeycode_session.json",
-                )
+                session_path = self._default_session_path()
             client = MonkeyCodeClient(
                 email=email,
                 password=password,

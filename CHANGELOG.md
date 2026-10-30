@@ -1,5 +1,10 @@
 # 更新日志
 
+## [v1.10.5] - 2026-10-30
+
+### 修复
+- **数据持久化合规**：登录会话文件默认保存到 `data/plugin_data/astrbot_plugin_monkeycode/session.json`（AstrBot 规范目录），不再写入系统临时目录；仅当用户显式配置 `session_path` 时才使用自定义路径
+
 ## [v1.10.4] - 2026-10-30
 
 ### 新增

@@ -20,10 +20,10 @@
     "hint": "自托管部署填自己的域名"
   },
   "session_path": {
-    "description": "登录会话持久化文件路径（留空自动使用系统临时目录）",
+    "description": "登录会话持久化文件路径（留空自动使用插件数据目录）",
     "type": "string",
     "default": "",
-    "hint": "填写后登录态保存到该文件，插件重启免登录；会话过期会自动重登"
+    "hint": "留空保存到 data/plugin_data/astrbot_plugin_monkeycode/session.json；也可自定义路径"
   },
   "default_repo_url": {
     "description": "默认 GitHub 仓库 URL（提交任务时可用）",
