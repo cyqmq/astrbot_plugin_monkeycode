@@ -1,5 +1,14 @@
 # 更新日志
 
+## [v1.13.0] - 2026-10-30
+
+### 新增
+- **动态下拉选项**：高级设置视图中的宿主/镜像/模型改为下拉框，加载时登录 MonkeyCode 自动获取账号下最新列表
+- 后端新增 Web API：`GET /astrbot_plugin_monkeycode/options`（返回 hosts/images/models 列表）
+
+### 调整
+- `auto_checkin_hour`（自动签到时间）和 `summary_prompt`（摘要小模型人格）从视图移回配置页，配置页直接可改
+
 ## [v1.12.0] - 2026-10-30
 
 ### 新增

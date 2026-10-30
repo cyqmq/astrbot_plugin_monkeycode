@@ -29,15 +29,21 @@
       </div>
       <div class="field">
         <label for="default_host_id">默认宿主 ID</label>
-        <input type="text" id="default_host_id" placeholder="留空用平台默认；/mc 环境 可查" />
+        <select id="default_host_id">
+          <option value="">留空（平台默认）</option>
+        </select>
       </div>
       <div class="field">
         <label for="default_image_id">默认镜像 ID</label>
-        <input type="text" id="default_image_id" placeholder="留空自动取第一个；/mc 环境 可查" />
+        <select id="default_image_id">
+          <option value="">留空（自动取第一个）</option>
+        </select>
       </div>
       <div class="field">
         <label for="default_model_id">默认模型 ID</label>
-        <input type="text" id="default_model_id" placeholder="留空自动取第一个；/mc 环境 可查" />
+        <select id="default_model_id">
+          <option value="">留空（自动取第一个）</option>
+        </select>
       </div>
       <div class="field">
         <label for="skill_ids">默认技能列表</label>

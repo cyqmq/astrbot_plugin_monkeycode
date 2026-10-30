@@ -35,7 +35,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.12.0",
+    "1.13.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -60,6 +60,29 @@ class MonkeyCodePlugin(Star):
             ["POST"],
             "保存 MonkeyCode 高级配置",
         )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/options",
+            self.view_get_options,
+            ["GET"],
+            "获取宿主/镜像/模型选项",
+        )
+
+    async def view_get_options(self):
+        """返回当前账号可用的宿主/镜像/模型列表（供视图下拉框）。"""
+        try:
+            client = await self._ensure_client()
+            hosts = await asyncio.to_thread(client.list_hosts)
+            images = await asyncio.to_thread(client.list_images)
+            models = await asyncio.to_thread(client.list_models)
+            return json_response(
+                {
+                    "hosts": hosts or [],
+                    "images": images or [],
+                    "models": models or [],
+                }
+            )
+        except Exception as e:
+            return error_response(f"获取选项失败：{e}", status_code=500)
 
     async def view_get_settings(self):
         """返回当前高级配置值（供视图表单填充）。"""

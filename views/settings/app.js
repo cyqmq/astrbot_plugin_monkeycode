@@ -17,6 +17,28 @@ const FIELDS = [
   { key: "auto_checkin_hour", type: "int" },
 ];
 
+// 动态下拉字段：key -> options 数据源键
+const SELECT_FIELDS = {
+  default_host_id: "hosts",
+  default_image_id: "images",
+  default_model_id: "models",
+};
+
+function fillSelect(el, items, value) {
+  el.innerHTML = "";
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "留空（自动）";
+  el.appendChild(empty);
+  for (const item of items || []) {
+    const opt = document.createElement("option");
+    opt.value = item.id;
+    opt.textContent = item.name || item.id || item.model || item.image_name || item.id;
+    el.appendChild(opt);
+  }
+  if (value) el.value = value;
+}
+
 function readValue(el, type) {
   if (type === "bool") return el.checked;
   if (type === "int") {
@@ -66,8 +88,19 @@ async function main() {
   await bridge.ready();
 
   try {
-    const data = await bridge.apiGet("settings");
-    fill(data);
+    // 先拉取动态下拉选项（需要登录态）
+    const options = await bridge.apiGet("options");
+    for (const [key, source] of Object.entries(SELECT_FIELDS)) {
+      const el = document.getElementById(key);
+      if (el) fillSelect(el, options[source], "");
+    }
+    // 再加载当前配置并选中已保存的值
+    const settings = await bridge.apiGet("settings");
+    for (const [key, source] of Object.entries(SELECT_FIELDS)) {
+      const el = document.getElementById(key);
+      if (el) fillSelect(el, options[source], settings[key]);
+    }
+    fill(settings);
   } catch (e) {
     setStatus("加载配置失败：" + e.message, false);
   }

@@ -16,10 +16,13 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 | `base_url` | API 地址（云平台默认 `https://monkeycode-ai.com`；自托管填自己域名） |
 | `summary_enabled` | 启用 LLM 生成任务摘要（默认关闭，用平台原始摘要，零 token） |
 | `summary_provider_id` | 摘要专用小模型提供商（配置界面下拉选择） |
+| `summary_prompt` | 摘要小模型人格/指令（默认中文简洁摘要） |
 | `auto_checkin_enabled` | 开启每日自动签到（默认关闭） |
+| `auto_checkin_hour` | 每日自动签到时间（小时 0-23，默认 8） |
 
-> 高级配置（默认仓库/分支/CLI/宿主/镜像/模型/技能、轮询参数、日志开关、摘要人格、
-> 会话持久化路径、自动签到时间）请在插件详情页打开 **「MonkeyCode 高级设置」视图** 中配置。
+> 高级配置（默认仓库/分支/CLI/宿主/镜像/模型/技能、轮询参数、日志开关、
+> 会话持久化路径）请在插件详情页打开 **「MonkeyCode 高级设置」视图** 中配置，
+> 其中宿主/镜像/模型下拉框会自动加载你账号下可用的最新列表。
 
 > 摘要说明：默认**不调用任何模型**，直接使用 MonkeyCode 平台返回的原始摘要。
 > 开启 `summary_enabled` 并填写 `summary_provider_id` 后，才会调用你指定的小模型生成摘要。
