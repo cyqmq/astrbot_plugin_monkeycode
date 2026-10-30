@@ -12,9 +12,7 @@ const FIELDS = [
   { key: "task_timeout_seconds", type: "int" },
   { key: "task_poll_interval", type: "int" },
   { key: "send_md_on_end", type: "bool" },
-  { key: "summary_prompt", type: "text" },
   { key: "session_path", type: "text" },
-  { key: "auto_checkin_hour", type: "int" },
 ];
 
 // 动态下拉字段：key -> options 数据源键

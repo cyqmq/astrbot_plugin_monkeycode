@@ -35,7 +35,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.13.1",
+    "1.13.2",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -97,9 +97,7 @@ class MonkeyCodePlugin(Star):
             "task_timeout_seconds",
             "task_poll_interval",
             "send_md_on_end",
-            "summary_prompt",
             "session_path",
-            "auto_checkin_hour",
         ]
         return json_response({k: self._cfg(k, "") for k in keys})
 
@@ -119,9 +117,7 @@ class MonkeyCodePlugin(Star):
             "task_timeout_seconds",
             "task_poll_interval",
             "send_md_on_end",
-            "summary_prompt",
             "session_path",
-            "auto_checkin_hour",
         ]
         for k in keys:
             if k in payload:
