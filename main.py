@@ -13,6 +13,7 @@
 LLM 工具：use_monkeycode —— 用户说「用 MonkeyCode 帮我...」时自动调用。
 """
 import asyncio
+import base64
 import json
 import os
 import re
@@ -33,7 +34,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.10.5",
+    "1.10.6",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -159,7 +160,10 @@ class MonkeyCodePlugin(Star):
     @staticmethod
     def _args(event: AstrMessageEvent, cmd: str) -> list[str]:
         """取指令参数，过滤平台附加标记（如 [MSG_ID:xxx]）。"""
-        text = (event.message_str or "").strip().lstrip("/").strip()
+        text = (event.message_str or "").strip()
+        # 剥离开头的平台标记（如 [MSG_ID:123] /mc 环境）
+        text = re.sub(r"^(\s*\[[A-Z_]+:[^\]]+\]\s*)+", "", text)
+        text = text.lstrip("/").strip()
         if text.startswith(cmd):
             rest = text[len(cmd):]
         elif text.split() and text.split()[0].startswith(cmd):
@@ -272,6 +276,31 @@ class MonkeyCodePlugin(Star):
             logger.error(f"[{PLUGIN_NAME}] 小模型摘要失败: {e}")
             return str(getattr(result, "summary", "") or "")
 
+    @staticmethod
+    def _chunk_text(data: Any) -> str:
+        """把任务轮次 chunk 的 data 字段转为可读文本。
+
+        后端 data 可能是普通文本或 base64(JSON)，这里兼容解码。
+        """
+        if not isinstance(data, str):
+            return json.dumps(data, ensure_ascii=False)
+        if data and len(data) % 4 == 0:
+            try:
+                decoded = base64.b64decode(data).decode("utf-8", errors="replace")
+            except Exception:
+                decoded = None
+            if decoded is not None:
+                try:
+                    obj = json.loads(decoded)
+                    if isinstance(obj, str):
+                        return obj
+                    if isinstance(obj, (dict, list)):
+                        return json.dumps(obj, ensure_ascii=False)
+                except Exception:
+                    return decoded
+                return decoded
+        return data
+
     def _build_task_md(self, client: Any, task_id: str, result: Any) -> str:
         """把任务详情与执行轮次整理成 Markdown 文本。"""
         lines = [
@@ -287,17 +316,17 @@ class MonkeyCodePlugin(Star):
             lines += ["", "## 任务内容", "", str(result.content)]
         try:
             rounds = client.get_task_rounds(task_id, limit=10)
-            rounds_list = (
-                rounds.get("rounds") or rounds.get("list") or []
+            chunks = (
+                rounds.get("chunks", [])
                 if isinstance(rounds, dict)
                 else (rounds or [])
             )
             lines += ["", "## 执行轮次", ""]
-            for r in rounds_list:
-                role = r.get("role") or r.get("type") or "agent"
-                content = str(r.get("content") or r.get("message") or "")[:600]
-                lines.append(f"### [{role}]")
-                lines.append(content)
+            for c in chunks:
+                event = c.get("event") or c.get("kind") or "agent"
+                text = self._chunk_text(c.get("data", ""))[:600]
+                lines.append(f"### [{event}]")
+                lines.append(text)
                 lines.append("")
         except Exception:
             pass
