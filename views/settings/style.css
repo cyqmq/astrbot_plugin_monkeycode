@@ -1,19 +1,27 @@
+/* 回退变量（旧版 AstrBot 未注入 Vuetify 变量时兜底） */
 :root {
-  --bg: #ffffff;
-  --text: #1a1a1a;
-  --card: #f6f7f9;
-  --border: #e2e4e8;
-  --accent: #2f7cf6;
-  --ok: #16a34a;
-  --err: #dc2626;
+  --fallback-bg: #ffffff;
+  --fallback-surface: #f6f7f9;
+  --fallback-text: #1a1a1a;
+  --fallback-border: #e2e4e8;
+  --fallback-accent: #2f7cf6;
+  --fallback-ok: #16a34a;
+  --fallback-err: #dc2626;
 }
 
 [data-theme="dark"] {
-  --bg: #1a1a1a;
-  --text: #e0e0e0;
-  --card: #23252a;
-  --border: #34363c;
-  --accent: #60a5fa;
+  --fallback-bg: #1a1a1a;
+  --fallback-surface: #23252a;
+  --fallback-text: #e0e0e0;
+  --fallback-border: #34363c;
+  --fallback-accent: #60a5fa;
+}
+
+/* 关键：让 iframe 背景透明，透出 Dashboard 的原版背景 */
+html,
+body {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 * {
@@ -23,8 +31,7 @@
 body {
   margin: 0;
   padding: 24px;
-  background: var(--bg);
-  color: var(--text);
+  color: var(--v-theme-on-background, var(--fallback-text));
   font-family: -apple-system, "Segoe UI", Roboto, "PingFang SC",
     "Microsoft YaHei", sans-serif;
   line-height: 1.6;
@@ -36,14 +43,14 @@ h1 {
 }
 
 .desc {
-  color: var(--text);
   opacity: 0.7;
   margin: 0 0 20px;
 }
 
 section {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background-color: var(--v-theme-surface, var(--fallback-surface));
+  color: var(--v-theme-on-surface, var(--fallback-text));
+  border: 1px solid var(--v-theme-outline, var(--fallback-border));
   border-radius: 10px;
   padding: 16px 20px;
   margin-bottom: 16px;
@@ -78,10 +85,10 @@ input[type="number"],
 select,
 textarea {
   padding: 8px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--v-theme-outline, var(--fallback-border));
   border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--v-theme-background, var(--fallback-bg));
+  color: var(--v-theme-on-background, var(--fallback-text));
   font-size: 13px;
 }
 
@@ -99,8 +106,8 @@ button {
   padding: 8px 20px;
   border: none;
   border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
+  background: var(--v-theme-primary, var(--fallback-accent));
+  color: var(--v-theme-on-primary, #ffffff);
   font-size: 14px;
   cursor: pointer;
 }
@@ -114,9 +121,9 @@ button:hover {
 }
 
 .status.ok {
-  color: var(--ok);
+  color: var(--v-theme-success, var(--fallback-ok));
 }
 
 .status.err {
-  color: var(--err);
+  color: var(--v-theme-error, var(--fallback-err));
 }
