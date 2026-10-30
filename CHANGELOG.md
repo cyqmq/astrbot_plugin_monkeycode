@@ -4,6 +4,7 @@
 
 ### 变更
 - SDK 依赖从 GitHub 仓库切换为 PyPI：`monkeycode-sdk>=1.7.1`，安装更稳定（`pip install monkeycode-sdk`）
+- README 补充「依赖安装排障」：国内镜像源未同步时使用清华源/官方源安装
 
 ## [v1.10.0] - 2026-10-29
 

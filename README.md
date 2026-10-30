@@ -6,7 +6,7 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 ## 安装
 
 1. 将本目录放到 AstrBot 的 `data/plugins/astrbot_plugin_monkeycode/`。
-2. 在 AstrBot 管理面板「插件」页刷新/重载插件（首次会安装依赖 `monkeycode-sdk`，需要能访问 GitHub）。
+2. 在 AstrBot 管理面板「插件」页刷新/重载插件（首次会通过 pip 安装依赖 `monkeycode-sdk`，已发布到 PyPI）。
 3. 在「插件配置」中填写：
 
 | 配置项 | 说明 |
@@ -25,6 +25,35 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 > 开启 `summary_enabled` 并填写 `summary_provider_id` 后，才会调用你指定的小模型生成摘要。
 > 每次摘要都是**独立调用**，小模型上下文只包含「人格指令 + 本次完整任务内容」，
 > 不保留多轮对话历史，也不会使用 AstrBot 主模型。
+
+### 依赖安装排障（pip 找不到 monkeycode-sdk）
+
+`monkeycode-sdk` 已发布到 PyPI（官方源）。如果你的 pip 使用**国内镜像源**（如阿里源），
+镜像可能滞后数小时，导致报错：
+
+```
+ERROR: Could not find a version that satisfies the requirement monkeycode-sdk>=1.7.1
+```
+
+解决办法（任选其一）：
+
+1. 使用已同步的镜像源安装（清华源已同步）：
+   ```bash
+   pip install -i https://pypi.tuna.tsinghua.edu.cn/simple monkeycode-sdk
+   ```
+2. 使用官方源安装：
+   ```bash
+   pip install -i https://pypi.org/simple monkeycode-sdk
+   ```
+3. 等待当前镜像源同步（阿里源通常数小时内完成）后重装。
+
+在 AstrBot 中手动安装依赖：
+
+```bash
+cd <AstrBot 安装目录>
+source .venv/bin/activate  # 如使用虚拟环境
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple monkeycode-sdk
+```
 
 ## 命令
 
