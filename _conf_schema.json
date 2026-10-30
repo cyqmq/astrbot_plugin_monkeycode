@@ -35,6 +35,41 @@
     "type": "string",
     "default": "main"
   },
+  "default_host_id": {
+    "description": "默认宿主 ID（留空用平台默认）",
+    "type": "string",
+    "default": "",
+    "hint": "一般无需填写；多宿主环境可指定"
+  },
+  "default_image_id": {
+    "description": "默认镜像 ID（留空自动取第一个）",
+    "type": "string",
+    "default": ""
+  },
+  "default_model_id": {
+    "description": "默认模型 ID（留空自动取第一个）",
+    "type": "string",
+    "default": ""
+  },
+  "task_timeout_seconds": {
+    "description": "任务轮询超时（秒）",
+    "type": "int",
+    "default": 3600,
+    "slider": {"min": 60, "max": 10800, "step": 60},
+    "hint": "任务超过该时长未结束则报超时"
+  },
+  "task_poll_interval": {
+    "description": "任务轮询间隔（秒）",
+    "type": "int",
+    "default": 15,
+    "slider": {"min": 5, "max": 120, "step": 5}
+  },
+  "send_md_on_end": {
+    "description": "任务完成时发送完整日志 md 文件",
+    "type": "bool",
+    "default": true,
+    "hint": "关闭后只发短通知，不发完整日志文件"
+  },
   "skill_ids": {
     "description": "默认技能列表（逗号分隔，可选）",
     "type": "string",

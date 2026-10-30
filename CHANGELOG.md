@@ -1,5 +1,12 @@
 # 更新日志
 
+## [v1.10.4] - 2026-10-30
+
+### 新增
+- 默认任务档位配置：`default_host_id` / `default_image_id` / `default_model_id`（留空自动取默认/第一个）
+- 任务轮询参数：`task_timeout_seconds`（默认 3600）/ `task_poll_interval`（默认 15）
+- `send_md_on_end`：控制任务完成时是否发送完整日志 md 文件
+
 ## [v1.10.3] - 2026-10-30
 
 ### 新增

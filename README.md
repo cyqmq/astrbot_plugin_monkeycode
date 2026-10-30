@@ -16,7 +16,13 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 | `base_url` | API 地址（云平台默认 `https://monkeycode-ai.com`；自托管填自己域名） |
 | `default_repo_url` | 默认 GitHub 仓库 URL（**可留空：不绑定仓库也能创建任务**） |
 | `default_branch` | 默认分支（`main`） |
+| `default_host_id` | 默认宿主 ID（留空用平台默认） |
+| `default_image_id` | 默认镜像 ID（留空自动取第一个） |
+| `default_model_id` | 默认模型 ID（留空自动取第一个） |
 | `skill_ids` | 默认技能列表（逗号分隔，可选） |
+| `task_timeout_seconds` | 任务轮询超时（秒，默认 3600） |
+| `task_poll_interval` | 任务轮询间隔（秒，默认 15） |
+| `send_md_on_end` | 任务完成时发送完整日志 md 文件（默认开） |
 | `summary_enabled` | 启用 LLM 生成任务摘要（默认关闭，用平台原始摘要，零 token） |
 | `summary_provider_id` | 摘要专用小模型提供商（配置界面下拉选择，或手动填 provider_id） |
 | `summary_prompt` | 摘要小模型人格/指令（默认中文简洁摘要） |

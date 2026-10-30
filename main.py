@@ -33,7 +33,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.10.3",
+    "1.10.4",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -175,12 +175,24 @@ class MonkeyCodePlugin(Star):
             branch=str(self._cfg("default_branch", "main") or "main"),
         )
         skill_ids = self._skill_ids()
+        kwargs: dict[str, Any] = {
+            "content": content,
+            "repo": repo,
+            "skill_ids": skill_ids,
+        }
+        host_id = str(self._cfg("default_host_id", "") or "").strip()
+        image_id = str(self._cfg("default_image_id", "") or "").strip()
+        model_id = str(self._cfg("default_model_id", "") or "").strip()
+        if host_id:
+            kwargs["host_id"] = host_id
+        if image_id:
+            kwargs["image_id"] = image_id
+        if model_id:
+            kwargs["model_id"] = model_id
         try:
             task = await asyncio.to_thread(
                 client.create_task,
-                content=content,
-                repo=repo,
-                skill_ids=skill_ids,
+                **kwargs,
             )
         except Exception as e:
             raise RuntimeError(f"创建任务失败：{e}") from e
@@ -191,8 +203,10 @@ class MonkeyCodePlugin(Star):
     async def _watch_task(self, task_id: str, origin: str) -> None:
         try:
             client = await self._ensure_client()
+            timeout = int(self._cfg("task_timeout_seconds", 3600) or 3600)
+            interval = int(self._cfg("task_poll_interval", 15) or 15)
             result = await asyncio.to_thread(
-                client.wait_task, task_id, timeout=3600, interval=15
+                client.wait_task, task_id, timeout=timeout, interval=interval
             )
             summary = await self._summarize(result)
             text = (
@@ -203,10 +217,12 @@ class MonkeyCodePlugin(Star):
                 text += f"\nPR：{result.pr_url}"
             if summary:
                 text += f"\n摘要：{summary[:200]}"
-            text += "\n完整日志已发送为 md 文件。"
+            if self._cfg("send_md_on_end", True):
+                text += "\n完整日志已发送为 md 文件。"
             await self._send(origin, text)
-            md = await asyncio.to_thread(self._build_task_md, client, task_id, result)
-            await self._send_markdown(origin, f"mc-{self._safe_filename(task_id)}.md", md)
+            if self._cfg("send_md_on_end", True):
+                md = await asyncio.to_thread(self._build_task_md, client, task_id, result)
+                await self._send_markdown(origin, f"mc-{self._safe_filename(task_id)}.md", md)
         except Exception as e:
             await self._send(origin, f"❌ MonkeyCode 任务 {task_id} 失败：{e}")
 
