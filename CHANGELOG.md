@@ -1,5 +1,16 @@
 # 更新日志
 
+## [v1.14.0] - 2026-10-31
+
+### 重构
+- **设置视图升级为 Vuetify 前端工程**：新增 `webui/`（Vite + Vue 3 + Vuetify 3 + TypeScript），构建产物输出到 `views/settings/`
+- 使用 `window.AstrBotPluginPage` bridge 与后端通信（含开发模式回退代理）
+- 主题自动跟随 AstrBot Dashboard 亮暗（监听 `data-theme` + Vuetify theme 切换）
+- 宿主/镜像/模型下拉框动态加载账号下最新列表
+
+### 开发
+- 前端工程开发命令：`cd webui && npm install && npm run dev`（开发）/ `npm run build`（构建）
+
 ## [v1.13.2] - 2026-10-30
 
 ### 修复

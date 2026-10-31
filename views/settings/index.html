@@ -2,84 +2,12 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MonkeyCode 高级设置</title>
-    <link rel="stylesheet" href="./style.css" />
+    <script type="module" crossorigin src="./assets/index-6vSjfmJU.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/style-C77kXZn9.css">
   </head>
   <body>
-    <h1 id="heading">MonkeyCode 高级设置</h1>
-    <p class="desc" id="desc">配置默认任务档位、轮询参数、日志与签到行为。保存后立即生效。</p>
-
-    <section>
-      <h2>任务默认值</h2>
-      <div class="field">
-        <label for="default_repo_url">默认 GitHub 仓库 URL</label>
-        <input type="text" id="default_repo_url" placeholder="留空：不绑定仓库也能创建任务" />
-      </div>
-      <div class="field">
-        <label for="default_branch">默认分支</label>
-        <input type="text" id="default_branch" placeholder="main" />
-      </div>
-      <div class="field">
-        <label for="default_cli_name">默认 agent CLI</label>
-        <select id="default_cli_name">
-          <option value="opencode">opencode</option>
-          <option value="codex">codex</option>
-          <option value="claude">claude</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="default_host_id">默认宿主 ID</label>
-        <select id="default_host_id">
-          <option value="">留空（平台默认）</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="default_image_id">默认镜像 ID</label>
-        <select id="default_image_id">
-          <option value="">留空（自动取第一个）</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="default_model_id">默认模型 ID</label>
-        <select id="default_model_id">
-          <option value="">留空（自动取第一个）</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="skill_ids">默认技能列表</label>
-        <input type="text" id="skill_ids" placeholder="逗号分隔，如 feature-design,project-wiki" />
-      </div>
-    </section>
-
-    <section>
-      <h2>任务轮询与日志</h2>
-      <div class="field">
-        <label for="task_timeout_seconds">轮询超时（秒）</label>
-        <input type="number" id="task_timeout_seconds" min="60" max="10800" step="60" />
-      </div>
-      <div class="field">
-        <label for="task_poll_interval">轮询间隔（秒）</label>
-        <input type="number" id="task_poll_interval" min="5" max="120" step="5" />
-      </div>
-      <div class="field check">
-        <label for="send_md_on_end">任务完成时发送完整日志 md 文件</label>
-        <input type="checkbox" id="send_md_on_end" />
-      </div>
-    </section>
-
-    <section>
-      <h2>会话</h2>
-      <div class="field">
-        <label for="session_path">登录会话持久化文件路径</label>
-        <input type="text" id="session_path" placeholder="留空：插件数据目录" />
-      </div>
-    </section>
-
-    <div class="actions">
-      <button id="save">保存设置</button>
-      <span id="status" class="status"></span>
-    </div>
-
-    <script type="module" src="./app.js"></script>
+    <div id="app"></div>
   </body>
 </html>
