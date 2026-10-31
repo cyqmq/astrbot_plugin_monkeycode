@@ -35,7 +35,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.18.0",
+    "1.19.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -66,6 +66,18 @@ class MonkeyCodePlugin(Star):
             ["GET"],
             "获取宿主/镜像/模型选项",
         )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/dashboard",
+            self.view_dashboard,
+            ["GET"],
+            "获取账户/额度/运行中任务概览",
+        )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/task/<task_id>",
+            self.view_task_detail,
+            ["GET"],
+            "获取任务详情与会话轮次",
+        )
 
     async def view_get_options(self):
         """返回当前账号可用的宿主/镜像/模型列表（供视图下拉框）。"""
@@ -83,6 +95,49 @@ class MonkeyCodePlugin(Star):
             )
         except Exception as e:
             return error_response(f"获取选项失败：{e}", status_code=500)
+
+    async def view_dashboard(self):
+        """返回后台概览：账户详情、额度、运行中任务。"""
+        try:
+            client = await self._ensure_client()
+            whoami = await asyncio.to_thread(client.whoami)
+            wallet = await asyncio.to_thread(client.get_wallet)
+            subscription = await asyncio.to_thread(client.get_subscription)
+            tasks_data = await asyncio.to_thread(client.list_tasks, size=20)
+            tasks = (
+                tasks_data.get("tasks")
+                if isinstance(tasks_data, dict)
+                else (tasks_data or [])
+            )
+            running = [
+                t
+                for t in tasks
+                if t.get("status") in ("pending", "processing", "running")
+            ]
+            return json_response(
+                {
+                    "user": whoami,
+                    "wallet": wallet,
+                    "subscription": subscription,
+                    "running_tasks": running,
+                    "recent_tasks": (tasks or [])[:10],
+                }
+            )
+        except Exception as e:
+            return error_response(f"获取概览失败：{e}", status_code=500)
+
+    async def view_task_detail(self, task_id: str):
+        """返回任务详情与会话轮次（后台会话详情）。"""
+        try:
+            client = await self._ensure_client()
+            task = await asyncio.to_thread(client.get_task, task_id)
+            rounds = await asyncio.to_thread(
+                client.get_task_rounds, task_id, limit=20
+            )
+            raw = task.raw if hasattr(task, "raw") else task
+            return json_response({"task": raw, "rounds": rounds})
+        except Exception as e:
+            return error_response(f"获取任务详情失败：{e}", status_code=500)
 
     async def view_get_settings(self):
         """返回当前高级配置值（供视图表单填充）。"""
@@ -104,6 +159,9 @@ class MonkeyCodePlugin(Star):
             "reply_read_timeout",
             "max_concurrent_tasks",
             "desensitize_enabled",
+            "auto_switch_model",
+            "fallback_model_ids",
+            "low_balance_threshold",
         ]
         return json_response({k: self._cfg(k, "") for k in keys})
 
@@ -130,6 +188,9 @@ class MonkeyCodePlugin(Star):
             "reply_read_timeout",
             "max_concurrent_tasks",
             "desensitize_enabled",
+            "auto_switch_model",
+            "fallback_model_ids",
+            "low_balance_threshold",
         ]
         for k in keys:
             if k in payload:
@@ -348,6 +409,7 @@ class MonkeyCodePlugin(Star):
             result = await asyncio.to_thread(
                 client.wait_task, task_id, timeout=timeout, interval=interval
             )
+            await self._maybe_auto_switch(client, task_id, result)
             summary = await self._summarize(result)
             if self._cfg("notify_on_task_end", True):
                 summary_len = int(self._cfg("task_summary_length", 200) or 200)
@@ -367,6 +429,34 @@ class MonkeyCodePlugin(Star):
                 await self._send_markdown(origin, f"mc-{self._safe_filename(task_id)}.md", md)
         except Exception as e:
             await self._send(origin, f"❌ MonkeyCode 任务 {task_id} 失败：{e}")
+
+    async def _maybe_auto_switch(
+        self, client: Any, task_id: str, result: Any
+    ) -> None:
+        """任务失败且开启自动切换时，用备用模型切换并重启任务。"""
+        status = getattr(result, "status", "")
+        if status not in ("error", "failed", "task-error"):
+            return
+        if not self._cfg("auto_switch_model", False):
+            return
+        fallback = [
+            m.strip()
+            for m in str(self._cfg("fallback_model_ids", "") or "").split(",")
+            if m.strip()
+        ]
+        if not fallback:
+            return
+        model_id = fallback[0]
+        try:
+            await client.switch_task_model(
+                task_id, model_id, load_session=True, timeout=30
+            )
+            await client.restart_task(task_id, load_session=True, timeout=30)
+            logger.info(
+                f"[{PLUGIN_NAME}] 任务 {task_id} 失败，已自动切换模型 {model_id} 并重启"
+            )
+        except Exception as e:
+            logger.error(f"[{PLUGIN_NAME}] 自动切换模型失败: {e}")
 
     async def _summarize(self, result: Any) -> str:
         """生成简短摘要。

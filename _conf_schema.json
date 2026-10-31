@@ -213,5 +213,31 @@
     "default": true,
     "invisible": true,
     "hint": "关闭后任务日志/详情中的 PAT/API Key 等将不再脱敏（不推荐）"
+  },
+  "auto_switch_model": {
+    "description": "任务失败时自动切换备用模型并重启",
+    "type": "bool",
+    "default": false,
+    "invisible": true,
+    "hint": "任务终态为失败/错误时，用备用模型列表中的第一个模型切换并重启任务"
+  },
+  "fallback_model_ids": {
+    "description": "备用模型 ID（逗号分隔，自动切换时取第一个）",
+    "type": "string",
+    "default": "",
+    "invisible": true,
+    "hint": "可用 /mc 环境 查询模型 ID；仅 auto_switch_model 开启时生效"
+  },
+  "low_balance_threshold": {
+    "description": "余额低额告警阈值",
+    "type": "int",
+    "default": 10000,
+    "invisible": true,
+    "slider": {
+      "min": 0,
+      "max": 1000000,
+      "step": 1000
+    },
+    "hint": "后台余额低于该值显示告警"
   }
 }
