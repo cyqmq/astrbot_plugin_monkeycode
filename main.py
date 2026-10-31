@@ -35,7 +35,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.19.2",
+    "2.0.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -103,6 +103,14 @@ class MonkeyCodePlugin(Star):
             whoami = await asyncio.to_thread(client.whoami)
             wallet = await asyncio.to_thread(client.get_wallet)
             subscription = await asyncio.to_thread(client.get_subscription)
+            user = self._extract_user(whoami)
+            sub = subscription
+            if isinstance(subscription, dict):
+                sub = (
+                    subscription.get("subscription")
+                    or subscription.get("data")
+                    or subscription
+                )
 
             # 显式查询运行中任务（平台状态含 pending/processing/running）
             running_data = await asyncio.to_thread(
@@ -133,15 +141,22 @@ class MonkeyCodePlugin(Star):
 
             return json_response(
                 {
-                    "user": whoami,
+                    "user": user,
                     "wallet": wallet,
-                    "subscription": subscription,
+                    "subscription": sub,
                     "running_tasks": running,
                     "recent_tasks": (recent or [])[:10],
                 }
             )
         except Exception as e:
             return error_response(f"获取概览失败：{e}", status_code=500)
+
+    @staticmethod
+    def _extract_user(data: Any) -> dict[str, Any]:
+        """从 whoami 返回结构中兼容提取用户信息。"""
+        if isinstance(data, dict):
+            return data.get("user") or data.get("data") or data
+        return data or {}
 
     @staticmethod
     def _extract_task_list(data: Any) -> list[dict[str, Any]]:
