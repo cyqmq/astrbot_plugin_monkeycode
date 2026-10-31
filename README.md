@@ -32,6 +32,9 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 > 每次摘要都是**独立调用**，小模型上下文只包含「人格指令 + 本次完整任务内容」，
 > 不保留多轮对话历史，也不会使用 AstrBot 主模型。
 
+> 安全说明：任务日志/详情/摘要/用户输入中的常见敏感凭据（GitHub PAT、`sk-*` API Key、
+> Bearer Token、`api_key=`/`password=` 键值对、PEM 私钥）会自动脱敏为 `***`，避免泄露。
+
 ### 依赖安装排障（pip 找不到 monkeycode-sdk）
 
 `monkeycode-sdk` 已发布到 PyPI（官方源）。如果你的 pip 使用**国内镜像源**（如阿里源），

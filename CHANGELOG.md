@@ -1,5 +1,15 @@
 # 更新日志
 
+## [v1.16.0] - 2026-10-31
+
+### 新增
+- **敏感信息脱敏**：新增 `_desensitize` 脱敏逻辑，覆盖任务日志/任务详情/用户输入/任务列表/摘要中的常见凭据：
+  - GitHub PAT（`github_pat_*`、`ghp_*` 等）
+  - OpenAI 风格 API Key（`sk-*`）、AWS Access Key（`AKIA*`）
+  - Bearer Token、`api_key=` / `password=` 等键值对
+  - PEM 私钥块
+- 任务 ID / 普通内容不受影响
+
 ## [v1.15.0] - 2026-10-31
 
 ### 新增

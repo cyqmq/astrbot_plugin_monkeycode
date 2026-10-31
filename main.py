@@ -35,7 +35,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.15.0",
+    "1.16.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -353,23 +353,59 @@ class MonkeyCodePlugin(Star):
         - 开启且配置了 summary_provider_id 时，调用指定小模型生成摘要（不碰主模型）。
         """
         if not self._cfg("summary_enabled", False):
-            return str(getattr(result, "summary", "") or "")
+            return self._desensitize(str(getattr(result, "summary", "") or ""))
         provider_id = str(self._cfg("summary_provider_id", "") or "").strip()
         if not provider_id:
-            return str(getattr(result, "summary", "") or "")
+            return self._desensitize(str(getattr(result, "summary", "") or ""))
         prompt = str(self._cfg("summary_prompt", "") or "")
         # 无历史上下文，可放心喂完整任务内容；仅保留高上限防止小模型上下文溢出
-        content = str(getattr(result, "content", "") or "")[:8000]
+        content = self._desensitize(
+            str(getattr(result, "content", "") or "")[:8000]
+        )
         try:
             llm_resp = await self.context.llm_generate(
                 chat_provider_id=provider_id,
                 prompt=(prompt + "\n\n" + content if content else prompt),
             )
             text = getattr(llm_resp, "completion_text", "") or ""
-            return str(text).strip()[:500]
+            return self._desensitize(str(text).strip()[:500])
         except Exception as e:
             logger.error(f"[{PLUGIN_NAME}] 小模型摘要失败: {e}")
             return str(getattr(result, "summary", "") or "")
+
+    @staticmethod
+    def _desensitize(text: str) -> str:
+        """对文本中的敏感凭据做脱敏（API Key / PAT / token / 私钥等）。"""
+        if not text:
+            return text
+        patterns = [
+            # GitHub fine-grained PAT
+            (r"github_pat_[A-Za-z0-9_]{16,}", "github_pat_***"),
+            # GitHub classic tokens
+            (r"\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{16,}", r"\1_***"),
+            # OpenAI 风格 API Key
+            (r"\bsk-[A-Za-z0-9_-]{12,}", "sk-***"),
+            # AWS Access Key
+            (r"\bAKIA[0-9A-Z]{16}\b", "AKIA***"),
+            # Bearer token
+            (r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]{16,}", r"\1***"),
+            # 通用键值对凭据
+            (
+                r"(?i)((?:api[_-]?key|apikey|access[_-]?token|auth[_-]?token|"
+                r"secret|password|passwd|client[_-]?secret)\s*[=:]\s*)"
+                r"[^\s,;\"'<>]+",
+                r"\1***",
+            ),
+            # 私钥块
+            (
+                r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?"
+                r"-----END [A-Z ]*PRIVATE KEY-----",
+                "-----BEGIN PRIVATE KEY-----***-----END PRIVATE KEY-----",
+            ),
+        ]
+        for pattern, repl in patterns:
+            text = re.sub(pattern, repl, text, flags=re.DOTALL | re.IGNORECASE)
+        return text
 
     @staticmethod
     def _chunk_text(data: Any) -> str:
@@ -405,10 +441,10 @@ class MonkeyCodePlugin(Star):
             f"- 仓库：{result.repo_url or '（未绑定）'}",
             f"- 分支：{result.branch or '-'}",
             f"- PR：{result.pr_url or '无'}",
-            f"- 摘要：{result.summary or '无'}",
+            f"- 摘要：{self._desensitize(str(result.summary or '')) or '无'}",
         ]
         if result.content:
-            lines += ["", "## 任务内容", "", str(result.content)]
+            lines += ["", "## 任务内容", "", self._desensitize(str(result.content))]
         try:
             rounds = client.get_task_rounds(task_id, limit=10)
             chunks = (
@@ -419,7 +455,7 @@ class MonkeyCodePlugin(Star):
             lines += ["", "## 执行轮次", ""]
             for c in chunks:
                 event = c.get("event") or c.get("kind") or "agent"
-                text = self._chunk_text(c.get("data", ""))[:600]
+                text = self._desensitize(self._chunk_text(c.get("data", "")))[:600]
                 lines.append(f"### [{event}]")
                 lines.append(text)
                 lines.append("")
@@ -688,7 +724,7 @@ class MonkeyCodePlugin(Star):
                 lines = [
                     f"📋 任务 {task_id}",
                     f"状态：{t.get('status', '')}",
-                    f"内容：{str(t.get('content') or '')[:200]}",
+                    f"内容：{self._desensitize(str(t.get('content') or ''))[:200]}",
                 ]
                 if t.get("model"):
                     m = t["model"]
@@ -713,7 +749,7 @@ class MonkeyCodePlugin(Star):
                 else:
                     lines = ["💬 用户输入："]
                     for it in items[:10]:
-                        content = str(it.get("content") or "")[:120]
+                        content = self._desensitize(str(it.get("content") or ""))[:120]
                         lines.append(f"  · {content}")
                     yield event.plain_result("\n".join(lines))
             elif action == "交易记录":
@@ -812,7 +848,9 @@ class MonkeyCodePlugin(Star):
         for t in tasks:
             status = t.get("status", "")
             title = t.get("title") or t.get("content") or t.get("id", "")
-            lines.append(f"  · [{status}] {title}（{t.get('id')}）")
+            lines.append(
+                f"  · [{status}] {self._desensitize(str(title))}（{t.get('id')}）"
+            )
         return "\n".join(lines)
 
     @staticmethod
