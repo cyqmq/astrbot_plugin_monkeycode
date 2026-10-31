@@ -1,5 +1,10 @@
 # 更新日志
 
+## [v2.0.7] - 2026-10-31
+
+### 修复
+- **轮次脱敏缺口**：`config_files.content` 内嵌 JSON 字符串（如 auth.json）中的 `key` / `api_key` 等字段现在会被解析并脱敏；`_SENSITIVE_RE` 使用单词边界匹配 `key`，避免误伤 `keyboard` / `keyword` 等
+
 ## [v2.0.6] - 2026-10-31
 
 ### 改进
