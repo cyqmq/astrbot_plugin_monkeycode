@@ -35,7 +35,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.19.0",
+    "1.19.1",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -1008,6 +1008,15 @@ class MonkeyCodePlugin(Star):
         )
 
     @staticmethod
+    def _to_points(value: Any) -> str:
+        """把平台原始数值换算为「点」（1000 原始值 = 1 点）。"""
+        try:
+            points = int(value) / 1000
+            return f"{points:g} 点"
+        except (TypeError, ValueError):
+            return str(value)
+
+    @staticmethod
     def _format_wallet(wallet: Any) -> str:
         """把钱包信息格式化为可读文本（去掉空 id / 无用字段）。"""
         if not isinstance(wallet, dict):
@@ -1017,7 +1026,7 @@ class MonkeyCodePlugin(Star):
         daily_limit = wallet.get("daily_token_limit")
         lines = ["💰 钱包信息"]
         if balance is not None:
-            lines.append(f"· 余额：{balance}")
+            lines.append(f"· 余额：{MonkeyCodePlugin._to_points(balance)}")
         if daily_balance is not None:
             if daily_limit is not None:
                 lines.append(f"· 每日 Token：{daily_balance} / {daily_limit}")
@@ -1033,7 +1042,7 @@ class MonkeyCodePlugin(Star):
             for k in ("amount", "points", "balance", "integral"):
                 v = result.get(k)
                 if v is not None:
-                    parts.append(f"积分：{v}")
+                    parts.append(f"积分：{MonkeyCodePlugin._to_points(v)}")
             msg = result.get("message") or result.get("msg")
             if msg:
                 parts.append(str(msg))

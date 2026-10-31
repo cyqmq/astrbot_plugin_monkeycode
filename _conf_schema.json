@@ -231,13 +231,13 @@
   "low_balance_threshold": {
     "description": "余额低额告警阈值",
     "type": "int",
-    "default": 10000,
+    "default": 100,
     "invisible": true,
     "slider": {
       "min": 0,
       "max": 1000000,
       "step": 1000
     },
-    "hint": "后台余额低于该值显示告警"
+    "hint": "余额低于该值（单位：点）时在后台显示告警；1000 原始值 = 1 点"
   }
 }

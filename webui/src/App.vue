@@ -66,7 +66,7 @@ const form = reactive({
   desensitize_enabled: true,
   auto_switch_model: false,
   fallback_model_ids: '',
-  low_balance_threshold: 10000,
+  low_balance_threshold: 100,
 })
 
 function displayName(item: Record<string, unknown>): string {
@@ -106,7 +106,8 @@ function statusText(status: string): string {
 }
 
 function walletBalance(): number {
-  return Number(dash.wallet.balance || 0)
+  // 平台原始值 1000 = 1 点
+  return Number(dash.wallet.balance || 0) / 1000
 }
 
 function dailyToken(): { used: number; limit: number; percent: number } {
@@ -131,7 +132,7 @@ async function loadSettings() {
   form.md_log_max_rounds = Number(settings.md_log_max_rounds) || 10
   form.reply_read_timeout = Number(settings.reply_read_timeout) || 60
   form.max_concurrent_tasks = Number(settings.max_concurrent_tasks) || 0
-  form.low_balance_threshold = Number(settings.low_balance_threshold) || 10000
+  form.low_balance_threshold = Number(settings.low_balance_threshold) || 100
   lowBalanceThreshold.value = form.low_balance_threshold
 }
 
@@ -529,7 +530,7 @@ onMounted(async () => {
                 />
                 <v-text-field
                   v-model.number="form.low_balance_threshold"
-                  label="余额低额告警阈值"
+                  label="余额低额告警阈值（点，1000 原始值=1 点）"
                   type="number"
                   min="0"
                   max="1000000"
