@@ -154,5 +154,64 @@
     "type": "string",
     "default": "任务,回复,停止,删除,重启,换模型,自动批准,取消自动批准,钱包,签到,交易记录,任务详情,用户输入,日志,文件下载",
     "hint": "这些命令会消耗积分或影响任务/账户，默认仅主人可用；留空则对群成员开放"
+  },
+  "notify_on_task_end": {
+    "description": "任务完成时发送短通知",
+    "type": "bool",
+    "default": true,
+    "invisible": true,
+    "hint": "关闭后任务完成不推送短通知（md 日志仍由 send_md_on_end 控制）"
+  },
+  "task_summary_length": {
+    "description": "通知中摘要截断长度",
+    "type": "int",
+    "default": 200,
+    "invisible": true,
+    "slider": {
+      "min": 50,
+      "max": 1000,
+      "step": 50
+    }
+  },
+  "md_log_max_rounds": {
+    "description": "任务日志导出的最大轮次数",
+    "type": "int",
+    "default": 10,
+    "invisible": true,
+    "slider": {
+      "min": 3,
+      "max": 50,
+      "step": 1
+    }
+  },
+  "reply_read_timeout": {
+    "description": "/mc 回复 等待 agent 响应的超时（秒）",
+    "type": "int",
+    "default": 60,
+    "invisible": true,
+    "slider": {
+      "min": 10,
+      "max": 300,
+      "step": 10
+    }
+  },
+  "max_concurrent_tasks": {
+    "description": "最大并发任务数（0 不限制）",
+    "type": "int",
+    "default": 0,
+    "invisible": true,
+    "slider": {
+      "min": 0,
+      "max": 20,
+      "step": 1
+    },
+    "hint": "防止群成员刷任务消耗积分；0 表示不限制"
+  },
+  "desensitize_enabled": {
+    "description": "敏感信息自动脱敏",
+    "type": "bool",
+    "default": true,
+    "invisible": true,
+    "hint": "关闭后任务日志/详情中的 PAT/API Key 等将不再脱敏（不推荐）"
   }
 }

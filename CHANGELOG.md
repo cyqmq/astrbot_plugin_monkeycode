@@ -1,5 +1,17 @@
 # 更新日志
 
+## [v1.18.0] - 2026-10-31
+
+### 新增（设置页可配置项扩充）
+- `notify_on_task_end`：任务完成时是否发送短通知（默认开）
+- `task_summary_length`：通知中摘要截断长度（默认 200）
+- `md_log_max_rounds`：任务日志导出的最大轮次数（默认 10）
+- `reply_read_timeout`：`/mc 回复` 等待 agent 响应的超时（默认 60 秒）
+- `max_concurrent_tasks`：最大并发任务数（默认 0 不限制，防止刷任务）
+- `desensitize_enabled`：敏感信息自动脱敏开关（默认开）
+
+以上配置均在「MonkeyCode 高级设置」视图页中管理，并已在前端表单中同步。
+
 ## [v1.17.0] - 2026-10-31
 
 ### 改进

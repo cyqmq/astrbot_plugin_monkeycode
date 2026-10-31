@@ -32,6 +32,12 @@ const form = reactive({
   task_poll_interval: 15,
   send_md_on_end: true,
   session_path: '',
+  notify_on_task_end: true,
+  task_summary_length: 200,
+  md_log_max_rounds: 10,
+  reply_read_timeout: 60,
+  max_concurrent_tasks: 0,
+  desensitize_enabled: true,
 })
 
 function displayName(item: Record<string, unknown>): string {
@@ -59,6 +65,10 @@ async function load() {
     Object.assign(form, settings)
     form.task_timeout_seconds = Number(settings.task_timeout_seconds) || 3600
     form.task_poll_interval = Number(settings.task_poll_interval) || 15
+    form.task_summary_length = Number(settings.task_summary_length) || 200
+    form.md_log_max_rounds = Number(settings.md_log_max_rounds) || 10
+    form.reply_read_timeout = Number(settings.reply_read_timeout) || 60
+    form.max_concurrent_tasks = Number(settings.max_concurrent_tasks) || 0
   } catch (e) {
     msg.value = '加载配置失败：' + (e as Error).message
     msgType.value = 'error'
@@ -195,6 +205,44 @@ onMounted(async () => {
               color="primary"
               hide-details
             />
+            <v-switch
+              v-model="form.notify_on_task_end"
+              label="任务完成时发送短通知"
+              color="primary"
+              hide-details
+            />
+            <v-text-field
+              v-model.number="form.task_summary_length"
+              label="通知中摘要截断长度"
+              type="number"
+              min="50"
+              max="1000"
+              density="comfortable"
+            />
+            <v-text-field
+              v-model.number="form.md_log_max_rounds"
+              label="任务日志导出的最大轮次数"
+              type="number"
+              min="3"
+              max="50"
+              density="comfortable"
+            />
+            <v-text-field
+              v-model.number="form.reply_read_timeout"
+              label="/mc 回复 等待 agent 响应的超时（秒）"
+              type="number"
+              min="10"
+              max="300"
+              density="comfortable"
+            />
+            <v-text-field
+              v-model.number="form.max_concurrent_tasks"
+              label="最大并发任务数（0 不限制）"
+              type="number"
+              min="0"
+              max="20"
+              density="comfortable"
+            />
           </v-card-text>
         </v-card>
 
@@ -207,6 +255,12 @@ onMounted(async () => {
               hint="留空：插件数据目录"
               persistent-hint
               density="comfortable"
+            />
+            <v-switch
+              v-model="form.desensitize_enabled"
+              label="敏感信息自动脱敏（PAT/API Key 等）"
+              color="primary"
+              hide-details
             />
           </v-card-text>
         </v-card>

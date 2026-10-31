@@ -35,7 +35,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.17.0",
+    "1.18.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -98,6 +98,12 @@ class MonkeyCodePlugin(Star):
             "task_poll_interval",
             "send_md_on_end",
             "session_path",
+            "notify_on_task_end",
+            "task_summary_length",
+            "md_log_max_rounds",
+            "reply_read_timeout",
+            "max_concurrent_tasks",
+            "desensitize_enabled",
         ]
         return json_response({k: self._cfg(k, "") for k in keys})
 
@@ -118,6 +124,12 @@ class MonkeyCodePlugin(Star):
             "task_poll_interval",
             "send_md_on_end",
             "session_path",
+            "notify_on_task_end",
+            "task_summary_length",
+            "md_log_max_rounds",
+            "reply_read_timeout",
+            "max_concurrent_tasks",
+            "desensitize_enabled",
         ]
         for k in keys:
             if k in payload:
@@ -283,6 +295,16 @@ class MonkeyCodePlugin(Star):
     ) -> str:
         """创建任务并启动后台轮询，返回任务 ID。"""
         client = await self._ensure_client()
+        max_tasks = int(self._cfg("max_concurrent_tasks", 0) or 0)
+        if max_tasks > 0:
+            data = await asyncio.to_thread(
+                client.list_tasks, status="pending,processing"
+            )
+            running = data.get("tasks") if isinstance(data, dict) else (data or [])
+            if len(running or []) >= max_tasks:
+                raise RuntimeError(
+                    f"并发任务数已达上限（{max_tasks}），请稍后再试。"
+                )
         repo = RepoReq(
             repo_url=repo_url or str(self._cfg("default_repo_url", "") or ""),
             branch=str(self._cfg("default_branch", "main") or "main"),
@@ -327,17 +349,19 @@ class MonkeyCodePlugin(Star):
                 client.wait_task, task_id, timeout=timeout, interval=interval
             )
             summary = await self._summarize(result)
-            text = (
-                f"⚡ MonkeyCode 任务完成\n"
-                f"任务ID：{task_id}\n状态：{result.status}"
-            )
-            if result.pr_url:
-                text += f"\nPR：{result.pr_url}"
-            if summary:
-                text += f"\n摘要：{summary[:200]}"
-            if self._cfg("send_md_on_end", True):
-                text += "\n完整日志已发送为 md 文件。"
-            await self._send(origin, text)
+            if self._cfg("notify_on_task_end", True):
+                summary_len = int(self._cfg("task_summary_length", 200) or 200)
+                text = (
+                    f"⚡ MonkeyCode 任务完成\n"
+                    f"任务ID：{task_id}\n状态：{result.status}"
+                )
+                if result.pr_url:
+                    text += f"\nPR：{result.pr_url}"
+                if summary:
+                    text += f"\n摘要：{summary[:summary_len]}"
+                if self._cfg("send_md_on_end", True):
+                    text += "\n完整日志已发送为 md 文件。"
+                await self._send(origin, text)
             if self._cfg("send_md_on_end", True):
                 md = await asyncio.to_thread(self._build_task_md, client, task_id, result)
                 await self._send_markdown(origin, f"mc-{self._safe_filename(task_id)}.md", md)
@@ -374,8 +398,10 @@ class MonkeyCodePlugin(Star):
             return str(getattr(result, "summary", "") or "")
 
     @staticmethod
-    def _desensitize(text: str) -> str:
+    def _desensitize(self, text: str) -> str:
         """对文本中的敏感凭据做脱敏（API Key / PAT / token / 私钥等）。"""
+        if not self._cfg("desensitize_enabled", True):
+            return text
         if not text:
             return text
         patterns = [
@@ -446,7 +472,9 @@ class MonkeyCodePlugin(Star):
         if result.content:
             lines += ["", "## 任务内容", "", self._desensitize(str(result.content))]
         try:
-            rounds = client.get_task_rounds(task_id, limit=10)
+            rounds = client.get_task_rounds(
+                task_id, limit=int(self._cfg("md_log_max_rounds", 10) or 10)
+            )
             chunks = (
                 rounds.get("chunks", [])
                 if isinstance(rounds, dict)
@@ -514,7 +542,9 @@ class MonkeyCodePlugin(Star):
                 client = await self._ensure_client()
                 # SDK 的 send_task_message 是原生 async（websockets），直接 await 即可
                 events = await client.send_task_message(
-                    task_id, content, read_timeout=60
+                    task_id,
+                    content,
+                    read_timeout=int(self._cfg("reply_read_timeout", 60) or 60),
                 )
                 types = [e.type for e in events]
                 summary = "\n".join(f"  · {t}" for t in types[:8])
@@ -1023,7 +1053,11 @@ class MonkeyCodePlugin(Star):
         try:
             client = await self._ensure_client()
             # SDK 的 send_task_message 是原生 async（websockets），直接 await 即可
-            events = await client.send_task_message(task_id, content, read_timeout=60)
+            events = await client.send_task_message(
+                    task_id,
+                    content,
+                    read_timeout=int(self._cfg("reply_read_timeout", 60) or 60),
+                )
             types = [e.type for e in events]
             yield event.plain_result(
                 f"已向任务 {task_id} 发送消息，收到事件：{', '.join(types[:5])}。"
