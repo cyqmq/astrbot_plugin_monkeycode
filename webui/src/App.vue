@@ -144,8 +144,13 @@ async function loadOptions() {
 }
 
 async function loadDashboard() {
-  const data = (await bridge.apiGet('dashboard')) as typeof dash
-  Object.assign(dash, data)
+  const data = (await bridge.apiGet('dashboard')) as Record<string, unknown>
+  // 后端返回下划线字段名，这里映射到前端驼峰字段
+  dash.user = (data.user as Record<string, unknown>) || {}
+  dash.wallet = (data.wallet as Record<string, unknown>) || {}
+  dash.subscription = (data.subscription as Record<string, unknown>) || {}
+  dash.runningTasks = (data.running_tasks as TaskItem[]) || []
+  dash.recentTasks = (data.recent_tasks as TaskItem[]) || []
 }
 
 async function loadAll() {
