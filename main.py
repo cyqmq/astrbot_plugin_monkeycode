@@ -49,7 +49,7 @@ except ImportError:
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.0.3",
+    "2.0.4",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -102,13 +102,35 @@ class MonkeyCodePlugin(Star):
             models = await asyncio.to_thread(client.list_models)
             return json_response(
                 {
-                    "hosts": hosts or [],
+                    "hosts": [self._normalize_host(h) for h in (hosts or [])],
                     "images": images or [],
                     "models": models or [],
                 }
             )
         except Exception as e:
             return error_response(f"获取选项失败：{e}", status_code=500)
+
+    @staticmethod
+    def _normalize_host(h: dict) -> dict:
+        """把平台宿主字段统一为后台下拉所需结构（状态/核心/内存/说明/自建公共）。"""
+        memory = h.get("memory") or h.get("memory_size") or h.get("mem") or ""
+        is_public = bool(
+            h.get("is_public")
+            or h.get("is_shared")
+            or h.get("public")
+            or str(h.get("type") or "").lower() == "public"
+        )
+        return {
+            "id": str(h.get("id") or h.get("host_id") or ""),
+            "name": str(h.get("name") or h.get("hostname") or ""),
+            "status": str(h.get("status") or ""),
+            "cpu": str(h.get("cpu") or h.get("cpu_core") or h.get("cores") or ""),
+            "memory": memory,
+            "remark": str(
+                h.get("remark") or h.get("description") or h.get("note") or ""
+            ),
+            "is_public": is_public,
+        }
 
     async def view_dashboard(self):
         """返回后台概览：账户详情、额度、运行中任务。"""

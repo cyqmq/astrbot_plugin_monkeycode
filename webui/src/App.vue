@@ -39,7 +39,7 @@ const detailRounds = ref<Array<Record<string, unknown>>>([])
 
 // ---------- 设置表单 ----------
 interface Options {
-  hosts: Array<{ id: string; name?: string }>
+  hosts: Array<Record<string, unknown>>
   images: Array<{ id: string; name?: string; image_name?: string }>
   models: Array<{ id: string; model?: string }>
 }
@@ -71,6 +71,42 @@ const form = reactive({
 
 function displayName(item: Record<string, unknown>): string {
   return String(item.name || item.model || item.image_name || item.id || '')
+}
+
+function hostStatusText(s: unknown): string {
+  const v = String(s || '').toLowerCase()
+  if (v === 'online') return '在线'
+  if (v === 'offline') return '离线'
+  if (v === 'running') return '运行中'
+  return String(s || '')
+}
+
+function formatMemory(mem: unknown): string {
+  if (mem == null || mem === '') return ''
+  const n = Number(mem)
+  if (!Number.isFinite(n) || n <= 0) return String(mem)
+  const gb = 1 << 30
+  const mb = 1 << 20
+  if (n >= gb) return (n / gb).toFixed(1) + ' GB'
+  if (n >= mb) return (n / mb).toFixed(0) + ' MB'
+  return String(mem)
+}
+
+function hostDisplayName(h: Record<string, unknown>): string {
+  const id = String(h.id || '')
+  const name = String(h.name || '')
+  const base = name && name !== id ? `${name} (${id})` : name || id
+  const parts: string[] = []
+  const status = hostStatusText(h.status)
+  if (status) parts.push(status)
+  const specs: string[] = []
+  if (h.cpu) specs.push(`${h.cpu} 核`)
+  const mem = formatMemory(h.memory)
+  if (mem) specs.push(mem)
+  if (specs.length) parts.push(specs.join(' / '))
+  if (h.remark) parts.push(String(h.remark).slice(0, 40))
+  parts.push(h.is_public ? '公共' : '自建')
+  return parts.length ? `${base} [${parts.join(' | ')}]` : base
 }
 
 function syncTheme() {
@@ -560,7 +596,7 @@ onMounted(async () => {
                   v-model="form.default_host_id"
                   label="默认宿主 ID"
                   :items="options.hosts"
-                  item-title="name"
+                  :item-title="(h: Record<string, unknown>) => hostDisplayName(h)"
                   item-value="id"
                   clearable
                   density="comfortable"
