@@ -35,7 +35,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.19.1",
+    "1.19.2",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -103,28 +103,57 @@ class MonkeyCodePlugin(Star):
             whoami = await asyncio.to_thread(client.whoami)
             wallet = await asyncio.to_thread(client.get_wallet)
             subscription = await asyncio.to_thread(client.get_subscription)
-            tasks_data = await asyncio.to_thread(client.list_tasks, size=20)
-            tasks = (
-                tasks_data.get("tasks")
-                if isinstance(tasks_data, dict)
-                else (tasks_data or [])
+
+            # 显式查询运行中任务（平台状态含 pending/processing/running）
+            running_data = await asyncio.to_thread(
+                client.list_tasks, size=20, status="pending,processing,running"
             )
-            running = [
-                t
-                for t in tasks
-                if t.get("status") in ("pending", "processing", "running")
-            ]
+            running = self._extract_task_list(running_data)
+
+            # 最近任务
+            recent_data = await asyncio.to_thread(client.list_tasks, size=10)
+            recent = self._extract_task_list(recent_data)
+
+            # 兜底：若 running 为空但 recent 存在非终态任务，补入展示
+            if not running:
+                terminal = {
+                    "completed",
+                    "success",
+                    "error",
+                    "failed",
+                    "terminated",
+                    "stopped",
+                    "canceled",
+                }
+                running = [
+                    t
+                    for t in recent
+                    if str(t.get("status") or "").lower() not in terminal
+                ]
+
             return json_response(
                 {
                     "user": whoami,
                     "wallet": wallet,
                     "subscription": subscription,
                     "running_tasks": running,
-                    "recent_tasks": (tasks or [])[:10],
+                    "recent_tasks": (recent or [])[:10],
                 }
             )
         except Exception as e:
             return error_response(f"获取概览失败：{e}", status_code=500)
+
+    @staticmethod
+    def _extract_task_list(data: Any) -> list[dict[str, Any]]:
+        """从 list_tasks 返回结构中兼容提取任务列表。"""
+        if isinstance(data, dict):
+            return (
+                data.get("tasks")
+                or data.get("list")
+                or data.get("items")
+                or []
+            )
+        return data or []
 
     async def view_task_detail(self, task_id: str):
         """返回任务详情与会话轮次（后台会话详情）。"""
@@ -163,7 +192,16 @@ class MonkeyCodePlugin(Star):
             "fallback_model_ids",
             "low_balance_threshold",
         ]
-        return json_response({k: self._cfg(k, "") for k in keys})
+        # 阈值单位迁移：旧版本存的是原始值（1000 原始=1 点），
+        # 若配置值 >= 1000，视为旧原始值，一次性迁移为新默认 100 点。
+        threshold = int(self._cfg("low_balance_threshold", 100) or 100)
+        if threshold >= 1000:
+            threshold = 100
+            self.config["low_balance_threshold"] = threshold
+            self.config.save_config()
+        data = {k: self._cfg(k, "") for k in keys}
+        data["low_balance_threshold"] = threshold
+        return json_response(data)
 
     async def view_save_settings(self):
         """保存视图提交的高级配置。"""
