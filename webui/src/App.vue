@@ -314,7 +314,48 @@ function roundLabel(c: Record<string, unknown>): string {
   if (su === 'available_commands_update') return '命令更新'
   if (su === 'agent_message' || su === 'agent_message_chunk') return 'Agent'
   if (su === 'tool_call' || su === 'tool_call_update') return '工具'
-  return String(c.event || c.kind || 'agent')
+  const event = String(c.event || c.kind || '')
+  if (event === 'user-input') return '用户输入'
+  if (event === 'task-started') return '任务开始'
+  if (event === 'task-ended') return '任务结束'
+  if (event === 'message') return '消息'
+  if (su) return su
+  return event || '事件'
+}
+
+type RoundKind = 'user' | 'agent' | 'tool' | 'system' | 'commands' | 'other'
+
+function roundKind(c: Record<string, unknown>): RoundKind {
+  const su = roundSessionUpdate(c)
+  const event = String(c.event || c.kind || c.type || '').toLowerCase()
+  if (su === 'available_commands_update') return 'commands'
+  if (su === 'agent_message' || su === 'agent_message_chunk') return 'agent'
+  if (su === 'tool_call' || su === 'tool_call_update') return 'tool'
+  if (event === 'user-input') return 'user'
+  if (
+    event.includes('task-started') ||
+    event.includes('task-ended') ||
+    event.includes('task-failed')
+  ) {
+    return 'system'
+  }
+  if (event === 'message') return 'agent'
+  return 'other'
+}
+
+function roundChipColor(kind: RoundKind): string {
+  switch (kind) {
+    case 'user':
+      return 'primary'
+    case 'agent':
+      return 'secondary'
+    case 'tool':
+      return 'info'
+    case 'system':
+      return 'warning'
+    default:
+      return 'grey'
+  }
 }
 
 function roundCollapsed(c: Record<string, unknown>): boolean {
@@ -701,16 +742,33 @@ onMounted(async () => {
               <div
                 v-for="(c, i) in detailRounds"
                 :key="i"
-                class="text-body-2 mb-2"
+                class="round-item mb-2"
+                :class="'round-' + roundKind(c)"
                 style="white-space: pre-wrap"
               >
                 <details v-if="roundCollapsed(c)">
-                  <summary>
-                    <strong>[{{ roundLabel(c) }}]</strong> {{ roundText(c) }}
+                  <summary class="round-summary">
+                    <v-chip
+                      size="x-small"
+                      :color="roundChipColor(roundKind(c))"
+                      text-color="white"
+                      class="mr-1"
+                    >
+                      {{ roundLabel(c) }}
+                    </v-chip>
+                    <span class="text-medium-emphasis">{{ roundText(c) }}</span>
                   </summary>
                 </details>
                 <template v-else>
-                  <strong>[{{ roundLabel(c) }}]</strong> {{ roundText(c) }}
+                  <v-chip
+                    size="x-small"
+                    :color="roundChipColor(roundKind(c))"
+                    text-color="white"
+                    class="mr-1"
+                  >
+                    {{ roundLabel(c) }}
+                  </v-chip>
+                  <span>{{ roundText(c) }}</span>
                 </template>
               </div>
               <div v-if="!detailRounds.length" class="text-body-2 text-medium-emphasis">
@@ -732,5 +790,48 @@ onMounted(async () => {
 html,
 body {
   background: transparent !important;
+}
+</style>
+
+<style scoped>
+.round-item {
+  border-radius: 6px;
+  padding: 6px 8px;
+  border-left: 3px solid transparent;
+}
+.round-user {
+  background: rgba(var(--v-theme-primary), 0.08);
+  border-left-color: rgb(var(--v-theme-primary));
+}
+.round-agent {
+  background: rgba(var(--v-theme-secondary), 0.06);
+  border-left-color: rgb(var(--v-theme-secondary));
+}
+.round-tool {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  opacity: 0.9;
+  background: rgba(var(--v-theme-info), 0.06);
+  border-left-color: rgb(var(--v-theme-info));
+}
+.round-system {
+  text-align: center;
+  font-style: italic;
+  font-size: 12px;
+  opacity: 0.8;
+  background: rgba(var(--v-theme-warning), 0.06);
+  border-left-color: rgb(var(--v-theme-warning));
+}
+.round-commands {
+  font-size: 12px;
+  opacity: 0.75;
+}
+.round-commands .round-summary {
+  cursor: pointer;
+  color: rgb(var(--v-theme-on-surface));
+}
+.round-other {
+  font-size: 12px;
+  opacity: 0.85;
 }
 </style>
