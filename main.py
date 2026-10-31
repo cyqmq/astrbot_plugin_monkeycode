@@ -35,7 +35,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.16.1",
+    "1.17.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -148,7 +148,7 @@ class MonkeyCodePlugin(Star):
         try:
             client = await self._ensure_client()
             result = await asyncio.to_thread(client.checkin)
-            await self._send(origin, f"✅ 每日签到完成：{self._fmt(result)[:300]}")
+            await self._send(origin, f"✅ 每日签到完成：{self._format_checkin(result)}")
         except Exception as e:
             await self._send(origin, f"❌ 自动签到失败：{e}")
 
@@ -549,7 +549,7 @@ class MonkeyCodePlugin(Star):
                 else:
                     client = await self._ensure_client()
                     result = await asyncio.to_thread(client.checkin)
-                    yield event.plain_result(f"✅ 签到结果：\n{self._fmt(result)}")
+                    yield event.plain_result(f"✅ 签到结果：{self._format_checkin(result)}")
             elif action == "项目":
                 client = await self._ensure_client()
                 projects = await asyncio.to_thread(client.list_projects)
@@ -592,7 +592,7 @@ class MonkeyCodePlugin(Star):
                 path = args[2] if len(args) > 2 else "/root"
                 client = await self._ensure_client()
                 folders = await asyncio.to_thread(client.list_folders, vm_id, path)
-                text = self._fmt(folders)
+                text = self._format_folders(folders)
                 yield event.plain_result(f"📁 {path} 下的内容：\n{text[:800]}")
             elif action == "日志":
                 if len(args) < 2:
@@ -683,7 +683,7 @@ class MonkeyCodePlugin(Star):
                 issue = await asyncio.to_thread(
                     client.create_project_issue, project_id, title
                 )
-                yield event.plain_result(f"✅ 已创建 Issue：{self._fmt(issue)[:300]}")
+                yield event.plain_result(f"✅ 已创建 Issue：{self._format_issue(issue)}")
             elif action == "评论":
                 if len(args) < 4:
                     yield event.plain_result("用法：/mc 评论 <项目ID> <IssueID> <内容>")
@@ -694,7 +694,7 @@ class MonkeyCodePlugin(Star):
                 result = await asyncio.to_thread(
                     client.add_issue_comment, project_id, issue_id, comment
                 )
-                yield event.plain_result(f"✅ 已评论：{self._fmt(result)[:300]}")
+                yield event.plain_result(f"✅ 已评论：{self._format_comment(result)}")
             elif action == "自动批准":
                 if len(args) < 2:
                     yield event.plain_result("用法：/mc 自动批准 <任务ID>（开启）或 /mc 取消自动批准 <任务ID>")
@@ -904,6 +904,78 @@ class MonkeyCodePlugin(Star):
             else:
                 lines.append(f"· 每日 Token 余额：{daily_balance}")
         return "\n".join(lines)
+
+    @staticmethod
+    def _format_checkin(result: Any) -> str:
+        """把签到结果格式化为可读文本。"""
+        if isinstance(result, dict):
+            parts = []
+            for k in ("amount", "points", "balance", "integral"):
+                v = result.get(k)
+                if v is not None:
+                    parts.append(f"积分：{v}")
+            msg = result.get("message") or result.get("msg")
+            if msg:
+                parts.append(str(msg))
+            if parts:
+                return "；".join(parts)
+        return str(result)
+
+    @staticmethod
+    def _format_folders(folders: Any) -> str:
+        """把目录/文件列表格式化为可读文本。"""
+        items = folders if isinstance(folders, list) else (folders or [])
+        if not items:
+            return "（空）"
+        lines = []
+        for it in items[:50]:
+            if not isinstance(it, dict):
+                lines.append(str(it))
+                continue
+            name = (
+                it.get("name")
+                or it.get("filename")
+                or it.get("path")
+                or it.get("id")
+            )
+            is_dir = it.get("is_dir") or it.get("type") in (
+                "dir",
+                "directory",
+                "folder",
+            )
+            prefix = "📁 " if is_dir else "📄 "
+            lines.append(f"{prefix}{name}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_issue(issue: Any) -> str:
+        """把 Issue 创建结果格式化为可读文本。"""
+        if isinstance(issue, dict):
+            iid = issue.get("id") or issue.get("number") or issue.get("issue_id")
+            title = issue.get("title")
+            parts = []
+            if iid:
+                parts.append(f"Issue #{iid}")
+            if title:
+                parts.append(str(title))
+            if parts:
+                return " ".join(parts)
+        return str(issue)
+
+    @staticmethod
+    def _format_comment(result: Any) -> str:
+        """把评论结果格式化为可读文本。"""
+        if isinstance(result, dict):
+            cid = result.get("id") or result.get("comment_id")
+            if cid:
+                return f"评论 #{cid} 已创建"
+            msg = result.get("message") or result.get("msg")
+            if msg:
+                return str(msg)
+            if result.get("success") is False:
+                return "评论失败"
+            return "已评论"
+        return str(result)
 
     @staticmethod
     def _fmt(obj: Any) -> str:
