@@ -32,9 +32,15 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
 
 
 def _b64decode(s: str) -> str:
-    """尝试 base64 解码为 UTF-8 文本；失败则原样返回。"""
+    """尝试 base64 解码为 UTF-8 文本；失败则原样返回。
+
+    多行日志中的 base64 可能包含换行符，先去掉空白再解码。
+    """
+    raw = re.sub(r"\s+", "", s)
+    raw = raw.replace("-", "+").replace("_", "/")
+    pad = "=" * ((4 - len(raw) % 4) % 4)
     try:
-        return base64.b64decode(s).decode("utf-8", errors="replace")
+        return base64.b64decode(raw + pad).decode("utf-8", errors="replace")
     except Exception:
         return s
 
@@ -88,7 +94,7 @@ except ImportError:
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.0.7",
+    "2.0.8",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
