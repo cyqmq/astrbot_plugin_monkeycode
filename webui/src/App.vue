@@ -191,7 +191,13 @@ async function openTaskDetail(task: TaskItem) {
       rounds: { chunks?: Array<Record<string, unknown>> }
     }
     detailTask.value = data.task || task
-    detailRounds.value = data.rounds?.chunks || []
+    const chunks = data.rounds?.chunks || []
+    detailRounds.value = [...chunks].sort((a, b) => {
+      const sa = Number(a.turn_seq || 0)
+      const sb = Number(b.turn_seq || 0)
+      if (sa !== sb) return sa - sb
+      return Number(a.timestamp || 0) - Number(b.timestamp || 0)
+    })
   } catch (e) {
     msg.value = '加载任务详情失败：' + (e as Error).message
     msgType.value = 'error'
@@ -200,24 +206,119 @@ async function openTaskDetail(task: TaskItem) {
   }
 }
 
+function b64decode(s: string): string {
+  try {
+    const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/'))
+    const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0))
+    return new TextDecoder('utf-8').decode(bytes)
+  } catch {
+    return s
+  }
+}
+
+function parseRoundPayload(d: unknown): Record<string, unknown> | null {
+  if (d && typeof d === 'object' && !Array.isArray(d)) {
+    return d as Record<string, unknown>
+  }
+  if (typeof d !== 'string') return null
+  const decoded = b64decode(d)
+  try {
+    const obj = JSON.parse(decoded)
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      return obj as Record<string, unknown>
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+function roundSessionUpdate(c: Record<string, unknown>): string {
+  const obj = parseRoundPayload(c.data)
+  if (!obj) return ''
+  const update =
+    obj.update && typeof obj.update === 'object'
+      ? (obj.update as Record<string, unknown>)
+      : {}
+  return String(obj.sessionUpdate || update.sessionUpdate || '')
+}
+
 function roundText(c: Record<string, unknown>): string {
   const d = c.data
-  if (typeof d !== 'string') return JSON.stringify(d)
-  if (d.length % 4 === 0) {
-    try {
-      const decoded = decodeURIComponent(
-        atob(d.replace(/-/g, '+').replace(/_/g, '/')),
-      )
-      return decoded.slice(0, 300)
-    } catch {
-      return d.slice(0, 300)
-    }
+  const parsed = parseRoundPayload(d)
+  let obj: unknown = parsed
+  if (!obj) {
+    if (typeof d === 'string') return b64decode(d).slice(0, 400)
+    if (d && typeof d === 'object') return JSON.stringify(d).slice(0, 300)
+    return String(d || '')
   }
-  return d.slice(0, 300)
+  if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+    const o = obj as Record<string, unknown>
+    if (o.type === 'user-input' && o.data != null && typeof o.content !== 'string') {
+      return roundText({ data: o.data })
+    }
+    if (typeof o.content === 'string') {
+      const inner = b64decode(o.content)
+      if (inner !== o.content) return inner.slice(0, 400)
+    }
+    const update =
+      o.update && typeof o.update === 'object'
+        ? (o.update as Record<string, unknown>)
+        : {}
+    const su = String(o.sessionUpdate || update.sessionUpdate || '')
+    if (su) {
+      if (su === 'available_commands_update') {
+        const cmds = Array.isArray(update.availableCommands)
+          ? update.availableCommands
+          : Array.isArray(o.availableCommands)
+            ? o.availableCommands
+            : []
+        const names = cmds
+          .map((x) => (x as { name?: string })?.name)
+          .filter(Boolean)
+          .slice(0, 10)
+        return names.length
+          ? `[可用命令更新] ${names.join('、')}`
+          : `[可用命令更新] 共 ${cmds.length} 项`
+      }
+      if (su === 'agent_message' || su === 'agent_message_chunk') {
+        const msg = update.message || update.content
+        if (typeof msg === 'string') return msg.slice(0, 400)
+        if (msg && typeof msg === 'object') {
+          const t = (msg as { text?: string }).text
+          if (typeof t === 'string') return t.slice(0, 400)
+        }
+        return String(msg || '').slice(0, 400)
+      }
+      if (su === 'tool_call' || su === 'tool_call_update') {
+        const title = String(update.title || update.kind || update.toolName || '')
+        const status = String(update.status || '')
+        const extra = [title, status].filter(Boolean).join(' ')
+        return extra
+          ? `[工具调用] ${extra}`.slice(0, 400)
+          : `[工具调用] ${JSON.stringify(update).slice(0, 300)}`
+      }
+      return `[${su}] ${JSON.stringify(update || o).slice(0, 300)}`
+    }
+    for (const k of ['content', 'message', 'text']) {
+      const v = o[k]
+      if (typeof v === 'string' && v) return v.slice(0, 400)
+    }
+    return JSON.stringify(o).slice(0, 300)
+  }
+  return String(d || '').slice(0, 400)
 }
 
 function roundLabel(c: Record<string, unknown>): string {
+  const su = roundSessionUpdate(c)
+  if (su === 'available_commands_update') return '命令更新'
+  if (su === 'agent_message' || su === 'agent_message_chunk') return 'Agent'
+  if (su === 'tool_call' || su === 'tool_call_update') return '工具'
   return String(c.event || c.kind || 'agent')
+}
+
+function roundCollapsed(c: Record<string, unknown>): boolean {
+  return roundSessionUpdate(c) === 'available_commands_update'
 }
 
 onMounted(async () => {
@@ -603,7 +704,14 @@ onMounted(async () => {
                 class="text-body-2 mb-2"
                 style="white-space: pre-wrap"
               >
-                <strong>[{{ roundLabel(c) }}]</strong> {{ roundText(c) }}
+                <details v-if="roundCollapsed(c)">
+                  <summary>
+                    <strong>[{{ roundLabel(c) }}]</strong> {{ roundText(c) }}
+                  </summary>
+                </details>
+                <template v-else>
+                  <strong>[{{ roundLabel(c) }}]</strong> {{ roundText(c) }}
+                </template>
               </div>
               <div v-if="!detailRounds.length" class="text-body-2 text-medium-emphasis">
                 暂无轮次记录。

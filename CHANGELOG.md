@@ -1,5 +1,11 @@
 # 更新日志
 
+## [v2.0.2] - 2026-10-31
+
+### 改进
+- **执行轮次可读化**：`user-input` 解开第二层 base64，直接显示用户原话
+- **ACP 分类展示**：`available_commands_update` 折叠为「命令更新」；`agent_message` / `tool_call` 分别精简显示，不再整包打印 JSON
+
 ## [v2.0.1] - 2026-10-31
 
 ### 修复

@@ -31,11 +31,25 @@ from monkeycode.models import RepoReq
 PLUGIN_NAME = "astrbot_plugin_monkeycode"
 
 
+def _b64decode(s: str) -> str:
+    """尝试 base64 解码为 UTF-8 文本；失败则原样返回。"""
+    try:
+        return base64.b64decode(s).decode("utf-8", errors="replace")
+    except Exception:
+        return s
+
+
+try:
+    from monkeycode.stream import format_round_text as _sdk_format_round_text
+except ImportError:
+    _sdk_format_round_text = None
+
+
 @register(
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.0.1",
+    "2.0.2",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -580,26 +594,78 @@ class MonkeyCodePlugin(Star):
     def _chunk_text(data: Any) -> str:
         """把任务轮次 chunk 的 data 字段转为可读文本。
 
-        后端 data 可能是普通文本或 base64(JSON)，这里兼容解码。
+        兼容协议：
+        - data 可能是普通文本或 base64(JSON)
+        - user-input 的 content 是第二层 base64，需再解一次
+        - task-running 等事件含 OpenCode ACP 载荷（sessionUpdate），
+          按 available_commands_update / agent_message / tool_call 分类精简
         """
-        if not isinstance(data, str):
+        if _sdk_format_round_text is not None:
+            return _sdk_format_round_text(data)
+        if isinstance(data, dict):
+            obj = data
+        elif not isinstance(data, str):
             return json.dumps(data, ensure_ascii=False)
-        if data and len(data) % 4 == 0:
+        else:
+            decoded = _b64decode(data)
             try:
-                decoded = base64.b64decode(data).decode("utf-8", errors="replace")
-            except Exception:
-                decoded = None
-            if decoded is not None:
-                try:
-                    obj = json.loads(decoded)
-                    if isinstance(obj, str):
-                        return obj
-                    if isinstance(obj, (dict, list)):
-                        return json.dumps(obj, ensure_ascii=False)
-                except Exception:
-                    return decoded
-                return decoded
-        return data
+                parsed = json.loads(decoded)
+            except (json.JSONDecodeError, ValueError):
+                return decoded if decoded != data else data
+            if not isinstance(parsed, dict):
+                return decoded if decoded != data else data
+            obj = parsed
+
+        # user-input：content 是第二层 base64（用户原始文本）
+        content = obj.get("content")
+        if isinstance(content, str):
+            inner = _b64decode(content)
+            if inner != content:
+                return inner
+
+        # OpenCode ACP 事件：按 sessionUpdate 分类
+        update = obj.get("update") if isinstance(obj.get("update"), dict) else {}
+        session_update = (
+            obj.get("sessionUpdate") or update.get("sessionUpdate") or ""
+        )
+        if session_update:
+            if session_update == "available_commands_update":
+                cmds = update.get("availableCommands") or []
+                names = [
+                    c.get("name")
+                    for c in cmds
+                    if isinstance(c, dict) and c.get("name")
+                ][:10]
+                return (
+                    f"[可用命令更新] {'、'.join(names)}"
+                    if names
+                    else f"[可用命令更新] 共 {len(cmds)} 项"
+                )
+            if session_update in ("agent_message", "agent_message_chunk"):
+                msg = update.get("message") or update.get("content")
+                if isinstance(msg, dict):
+                    msg = msg.get("text") or msg
+                return str(msg) if msg is not None else ""
+            if session_update in ("tool_call", "tool_call_update"):
+                title = update.get("title") or update.get("kind") or ""
+                status = update.get("status") or ""
+                extra = " ".join(str(x) for x in (title, status) if x)
+                if extra:
+                    return f"[工具调用] {extra}"
+                return (
+                    f"[工具调用] {json.dumps(update, ensure_ascii=False)[:300]}"
+                )
+            return (
+                f"[{session_update}] "
+                f"{json.dumps(update or obj, ensure_ascii=False)[:300]}"
+            )
+
+        # 其他事件：优先取 content/message/text 字段
+        for key in ("content", "message", "text"):
+            v = obj.get(key)
+            if isinstance(v, str) and v:
+                return v
+        return json.dumps(obj, ensure_ascii=False)[:300]
 
     def _build_task_md(self, client: Any, task_id: str, result: Any) -> str:
         """把任务详情与执行轮次整理成 Markdown 文本。"""
