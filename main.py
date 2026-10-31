@@ -26,7 +26,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.web import error_response, json_response, request
 
 from monkeycode import MonkeyCodeClient
-from monkeycode.models import RepoReq
+from monkeycode.models import RepoReq, group_models
 
 PLUGIN_NAME = "astrbot_plugin_monkeycode"
 
@@ -49,7 +49,7 @@ except ImportError:
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.0.4",
+    "2.0.5",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -104,11 +104,27 @@ class MonkeyCodePlugin(Star):
                 {
                     "hosts": [self._normalize_host(h) for h in (hosts or [])],
                     "images": images or [],
-                    "models": models or [],
+                    "models": self._tag_model_groups(models or []),
                 }
             )
         except Exception as e:
             return error_response(f"获取选项失败：{e}", status_code=500)
+
+    @staticmethod
+    def _tag_model_groups(models: list[dict]) -> list[dict]:
+        """按页面分类给模型标注 _group（我的/基础/专业/旗舰/其他）。"""
+        groups = group_models(models)
+        names = {
+            "private": "我的模型",
+            "basic": "基础模型",
+            "pro": "专业模型",
+            "ultra": "旗舰模型",
+            "other": "其他",
+        }
+        for key, label in names.items():
+            for m in groups.get(key, []):
+                m["_group"] = label
+        return models
 
     @staticmethod
     def _normalize_host(h: dict) -> dict:

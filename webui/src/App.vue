@@ -109,6 +109,15 @@ function hostDisplayName(h: Record<string, unknown>): string {
   return parts.length ? `${base} [${parts.join(' | ')}]` : base
 }
 
+function modelDisplayName(m: Record<string, unknown>): string {
+  const base = String(m.model || m.name || m.id || '')
+  const tags: string[] = []
+  if (m.is_free === false) tags.push('付费')
+  const al = String(m.access_level || '')
+  if (al) tags.push(al)
+  return tags.length ? `${base}（${tags.join(' ')}）` : base
+}
+
 function syncTheme() {
   const isDark = document.documentElement.dataset.theme === 'dark'
   theme.global.name.value = isDark ? 'dark' : 'light'
@@ -614,8 +623,9 @@ onMounted(async () => {
                   v-model="form.default_model_id"
                   label="默认模型 ID"
                   :items="options.models"
-                  :item-title="(i: Record<string, unknown>) => displayName(i)"
+                  :item-title="(i: Record<string, unknown>) => modelDisplayName(i)"
                   item-value="id"
+                  group-by="_group"
                   clearable
                   density="comfortable"
                 />
