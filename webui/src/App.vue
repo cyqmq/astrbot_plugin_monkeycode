@@ -288,77 +288,125 @@ function roundSessionUpdate(c: Record<string, unknown>): string {
   return String(obj.sessionUpdate || update.sessionUpdate || '')
 }
 
+const SENSITIVE_RE =
+  /api[_-]?key|apikey|access[_-]?key|secret|password|passwd|token|authorization|cookie|env|credential/i
+
+function redactSensitive(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((v) => redactSensitive(v))
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (SENSITIVE_RE.test(k) && v != null && v !== '') {
+        out[k] =
+          k.toLowerCase() === 'envs' && typeof v === 'object'
+            ? { '***': '***' }
+            : '***'
+      } else {
+        out[k] = redactSensitive(v)
+      }
+    }
+    return out
+  }
+  return value
+}
+
+function textOf(v: unknown): string {
+  if (typeof v === 'string') return v
+  if (v && typeof v === 'object') {
+    const t = (v as { text?: string }).text
+    if (typeof t === 'string') return t
+  }
+  if (Array.isArray(v)) {
+    return v
+      .map((x) => textOf(x))
+      .filter(Boolean)
+      .join('')
+  }
+  return ''
+}
+
 function roundText(c: Record<string, unknown>): string {
   const d = c.data
   const parsed = parseRoundPayload(d)
-  let obj: unknown = parsed
-  if (!obj) {
+  if (!parsed) {
     if (typeof d === 'string') return b64decode(d).slice(0, 400)
-    if (d && typeof d === 'object') return JSON.stringify(d).slice(0, 300)
+    if (d && typeof d === 'object') {
+      return JSON.stringify(redactSensitive(d)).slice(0, 300)
+    }
     return String(d || '')
   }
-  if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
-    const o = obj as Record<string, unknown>
-    if (o.type === 'user-input' && o.data != null && typeof o.content !== 'string') {
-      return roundText({ data: o.data })
-    }
-    if (typeof o.content === 'string') {
-      const inner = b64decode(o.content)
-      if (inner !== o.content) return inner.slice(0, 400)
-    }
-    const update =
-      o.update && typeof o.update === 'object'
-        ? (o.update as Record<string, unknown>)
-        : {}
-    const su = String(o.sessionUpdate || update.sessionUpdate || '')
-    if (su) {
-      if (su === 'available_commands_update') {
-        const cmds = Array.isArray(update.availableCommands)
-          ? update.availableCommands
-          : Array.isArray(o.availableCommands)
-            ? o.availableCommands
-            : []
-        const names = cmds
-          .map((x) => (x as { name?: string })?.name)
-          .filter(Boolean)
-          .slice(0, 10)
-        return names.length
-          ? `[可用命令更新] ${names.join('、')}`
-          : `[可用命令更新] 共 ${cmds.length} 项`
-      }
-      if (su === 'agent_message' || su === 'agent_message_chunk') {
-        const msg = update.message || update.content
-        if (typeof msg === 'string') return msg.slice(0, 400)
-        if (msg && typeof msg === 'object') {
-          const t = (msg as { text?: string }).text
-          if (typeof t === 'string') return t.slice(0, 400)
-        }
-        return String(msg || '').slice(0, 400)
-      }
-      if (su === 'tool_call' || su === 'tool_call_update') {
-        const title = String(update.title || update.kind || update.toolName || '')
-        const status = String(update.status || '')
-        const extra = [title, status].filter(Boolean).join(' ')
-        return extra
-          ? `[工具调用] ${extra}`.slice(0, 400)
-          : `[工具调用] ${JSON.stringify(update).slice(0, 300)}`
-      }
-      return `[${su}] ${JSON.stringify(update || o).slice(0, 300)}`
-    }
-    for (const k of ['content', 'message', 'text']) {
-      const v = o[k]
-      if (typeof v === 'string' && v) return v.slice(0, 400)
-    }
-    return JSON.stringify(o).slice(0, 300)
+  const o = parsed
+  if (o.type === 'user-input' && o.data != null && typeof o.content !== 'string') {
+    return roundText({ data: o.data })
   }
-  return String(d || '').slice(0, 400)
+  if (typeof o.content === 'string') {
+    const inner = b64decode(o.content)
+    if (inner !== o.content) return inner.slice(0, 400)
+  }
+  const update =
+    o.update && typeof o.update === 'object'
+      ? (o.update as Record<string, unknown>)
+      : {}
+  const su = String(o.sessionUpdate || update.sessionUpdate || '')
+  if (su) {
+    if (su === 'available_commands_update') {
+      const cmds = Array.isArray(update.availableCommands)
+        ? update.availableCommands
+        : Array.isArray(o.availableCommands)
+          ? o.availableCommands
+          : []
+      const names = cmds
+        .map((x) => (x as { name?: string })?.name)
+        .filter(Boolean)
+        .slice(0, 10)
+      return names.length ? names.join('、') : `共 ${cmds.length} 项`
+    }
+    if (su === 'agent_message' || su === 'agent_message_chunk') {
+      const msg =
+        textOf(update.message || update.content) ||
+        textOf(o.message || o.content)
+      return msg.slice(0, 400)
+    }
+    if (su === 'agent_thought_chunk') {
+      return textOf(update.thought || update.content).slice(0, 400) || '（思考中）'
+    }
+    if (su === 'usage_update') {
+      const usage = (update.usage || {}) as Record<string, unknown>
+      const total =
+        usage.totalTokens || usage.total_tokens || usage.total || ''
+      return total ? `用量：${total}` : '用量更新'
+    }
+    if (su === 'tool_call' || su === 'tool_call_update') {
+      const title = String(update.title || update.kind || update.toolName || '')
+      const status = String(update.status || '')
+      const extra = [title, status].filter(Boolean).join(' ')
+      return (extra || JSON.stringify(update)).slice(0, 400)
+    }
+    if (su === 'call' || su === 'call-response') {
+      const title = String(update.title || update.toolName || update.kind || '')
+      const status = String(update.status || '')
+      const extra = [title, status].filter(Boolean).join(' ')
+      if (extra) return extra.slice(0, 400)
+      return JSON.stringify(redactSensitive(update)).slice(0, 300)
+    }
+    return JSON.stringify(redactSensitive(update || o)).slice(0, 300)
+  }
+  for (const k of ['content', 'message', 'text']) {
+    const extracted = textOf(o[k])
+    if (extracted) return extracted.slice(0, 400)
+  }
+  return JSON.stringify(redactSensitive(o)).slice(0, 300)
 }
 
 function roundLabel(c: Record<string, unknown>): string {
   const su = roundSessionUpdate(c)
   if (su === 'available_commands_update') return '命令更新'
   if (su === 'agent_message' || su === 'agent_message_chunk') return 'Agent'
+  if (su === 'agent_thought_chunk') return '思考'
+  if (su === 'usage_update') return '用量'
   if (su === 'tool_call' || su === 'tool_call_update') return '工具'
+  if (su === 'call') return '调用'
+  if (su === 'call-response') return '调用响应'
   const event = String(c.event || c.kind || '')
   if (event === 'user-input') return '用户输入'
   if (event === 'task-started') return '任务开始'

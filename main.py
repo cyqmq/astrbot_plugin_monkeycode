@@ -39,6 +39,40 @@ def _b64decode(s: str) -> str:
         return s
 
 
+_SENSITIVE_KEYWORDS = (
+    "api_key",
+    "apikey",
+    "access_key",
+    "secret",
+    "password",
+    "passwd",
+    "token",
+    "authorization",
+    "cookie",
+    "env",
+    "credential",
+)
+
+
+def _redact_sensitive(value: Any) -> Any:
+    """递归脱敏：密钥类字段（api_key/token/secret/password/env 等）值替换为 ***。"""
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for k, v in value.items():
+            kl = str(k).lower()
+            if any(w in kl for w in _SENSITIVE_KEYWORDS) and v not in (None, ""):
+                if kl == "envs" and isinstance(v, dict):
+                    out[k] = {"***": "***"}
+                else:
+                    out[k] = "***"
+            else:
+                out[k] = _redact_sensitive(v)
+        return out
+    if isinstance(value, list):
+        return [_redact_sensitive(v) for v in value]
+    return value
+
+
 try:
     from monkeycode.stream import format_round_text as _sdk_format_round_text
 except ImportError:
@@ -49,7 +83,7 @@ except ImportError:
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.0.5",
+    "2.0.6",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -675,27 +709,51 @@ class MonkeyCodePlugin(Star):
                     if isinstance(c, dict) and c.get("name")
                 ][:10]
                 return (
-                    f"[可用命令更新] {'、'.join(names)}"
+                    "、".join(names)
                     if names
-                    else f"[可用命令更新] 共 {len(cmds)} 项"
+                    else f"共 {len(cmds)} 项"
                 )
             if session_update in ("agent_message", "agent_message_chunk"):
                 msg = update.get("message") or update.get("content")
                 if isinstance(msg, dict):
                     msg = msg.get("text") or msg
                 return str(msg) if msg is not None else ""
+            if session_update == "agent_thought_chunk":
+                thought = update.get("thought") or update.get("content")
+                if isinstance(thought, dict):
+                    thought = thought.get("text") or thought
+                return str(thought)[:300] if thought else "（思考中）"
+            if session_update == "usage_update":
+                usage = update.get("usage") or {}
+                if isinstance(usage, dict):
+                    total = (
+                        usage.get("totalTokens")
+                        or usage.get("total_tokens")
+                        or usage.get("total")
+                        or ""
+                    )
+                    if total:
+                        return f"用量：{total}"
+                return "用量更新"
             if session_update in ("tool_call", "tool_call_update"):
                 title = update.get("title") or update.get("kind") or ""
                 status = update.get("status") or ""
                 extra = " ".join(str(x) for x in (title, status) if x)
+                return extra or json.dumps(
+                    _redact_sensitive(update), ensure_ascii=False
+                )[:300]
+            if session_update in ("call", "call-response"):
+                title = update.get("title") or update.get("kind") or ""
+                status = update.get("status") or ""
+                extra = " ".join(str(x) for x in (title, status) if x)
                 if extra:
-                    return f"[工具调用] {extra}"
-                return (
-                    f"[工具调用] {json.dumps(update, ensure_ascii=False)[:300]}"
-                )
+                    return extra
+                return json.dumps(
+                    _redact_sensitive(update), ensure_ascii=False
+                )[:300]
             return (
-                f"[{session_update}] "
-                f"{json.dumps(update or obj, ensure_ascii=False)[:300]}"
+                f"{session_update} "
+                f"{json.dumps(_redact_sensitive(update or obj), ensure_ascii=False)[:300]}"
             )
 
         # 其他事件：优先取 content/message/text 字段
@@ -703,7 +761,7 @@ class MonkeyCodePlugin(Star):
             v = obj.get(key)
             if isinstance(v, str) and v:
                 return v
-        return json.dumps(obj, ensure_ascii=False)[:300]
+        return json.dumps(_redact_sensitive(obj), ensure_ascii=False)[:300]
 
     def _build_task_md(self, client: Any, task_id: str, result: Any) -> str:
         """把任务详情与执行轮次整理成 Markdown 文本。"""
