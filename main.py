@@ -35,7 +35,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.16.0",
+    "1.16.1",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -524,7 +524,7 @@ class MonkeyCodePlugin(Star):
             elif action == "钱包":
                 client = await self._ensure_client()
                 wallet = await asyncio.to_thread(client.get_wallet)
-                yield event.plain_result(f"💰 钱包信息：\n{self._fmt(wallet)}")
+                yield event.plain_result(self._format_wallet(wallet))
             elif action == "签到":
                 mode = args[1] if len(args) > 1 else ""
                 if mode == "on":
@@ -886,6 +886,24 @@ class MonkeyCodePlugin(Star):
             "/mc 签到 on [小时] / off   开启/关闭每日自动签到\n\n"
             "也可直接对我说：用 MonkeyCode 帮我 <任务描述>"
         )
+
+    @staticmethod
+    def _format_wallet(wallet: Any) -> str:
+        """把钱包信息格式化为可读文本（去掉空 id / 无用字段）。"""
+        if not isinstance(wallet, dict):
+            return str(wallet)
+        balance = wallet.get("balance")
+        daily_balance = wallet.get("daily_token_balance")
+        daily_limit = wallet.get("daily_token_limit")
+        lines = ["💰 钱包信息"]
+        if balance is not None:
+            lines.append(f"· 余额：{balance}")
+        if daily_balance is not None:
+            if daily_limit is not None:
+                lines.append(f"· 每日 Token：{daily_balance} / {daily_limit}")
+            else:
+                lines.append(f"· 每日 Token 余额：{daily_balance}")
+        return "\n".join(lines)
 
     @staticmethod
     def _fmt(obj: Any) -> str:
