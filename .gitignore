@@ -3,3 +3,8 @@ __pycache__/
 .venv/
 .env
 .DS_Store
+node_modules/
+webui/node_modules/
+dist/
+build/
+.pytest_cache/
