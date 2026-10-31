@@ -35,7 +35,7 @@ PLUGIN_NAME = "astrbot_plugin_monkeycode"
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "1.14.1",
+    "1.15.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -255,6 +255,15 @@ class MonkeyCodePlugin(Star):
         tokens = [a for a in re.split(r"[\s,，、]+", rest) if a]
         return [a for a in tokens if not re.match(r"^\[[A-Z_]+:", a)]
 
+    # ---------- 权限控制 ----------
+
+    def _admin_only_actions(self) -> set[str]:
+        """返回仅主人/管理员可用的命令集合。"""
+        raw = str(self._cfg("admin_only_commands", "") or "").strip()
+        if not raw:
+            return set()
+        return {s.strip() for s in raw.split(",") if s.strip()}
+
     # ---------- 任务提交与后台通知 ----------
 
     def _repo(self) -> RepoReq:
@@ -428,6 +437,10 @@ class MonkeyCodePlugin(Star):
             yield event.plain_result(self._help_text())
             return
         action = args[0]
+        admin_only = self._admin_only_actions()
+        if action in admin_only and not event.is_admin():
+            yield event.plain_result("该功能仅主人/管理员可用。")
+            return
         try:
             if action == "帮助":
                 yield event.plain_result(self._help_text())

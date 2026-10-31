@@ -148,5 +148,11 @@
     "type": "string",
     "default": "",
     "invisible": true
+  },
+  "admin_only_commands": {
+    "description": "仅主人/管理员可用的命令（逗号分隔）",
+    "type": "string",
+    "default": "任务,回复,停止,删除,重启,换模型,自动批准,取消自动批准,钱包,签到,交易记录,任务详情,用户输入,日志,文件下载",
+    "hint": "这些命令会消耗积分或影响任务/账户，默认仅主人可用；留空则对群成员开放"
   }
 }
