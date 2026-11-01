@@ -1,3 +1,3 @@
-monkeycode-sdk>=1.7.1
+monkeycode-sdk>=1.10.0
 aiohttp
 apscheduler
