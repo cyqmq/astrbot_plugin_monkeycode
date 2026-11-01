@@ -1,5 +1,10 @@
 # 更新日志
 
+## [v2.1.1] - 2026-11-01
+
+### 修复
+- **后台 MCP 列表裸 list 崩溃**：`list_mcp_upstreams`/`team_list_mcp_upstreams` 返回裸 `list` 时原提取写法先对 list 调 `.get` 抛错。新增 `_extract_items()` 安全提取（兼容裸 list / dict 容器 / data-list 包裹）。
+
 ## [v2.1.0] - 2026-11-01
 
 ### 新增

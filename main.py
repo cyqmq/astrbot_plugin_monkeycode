@@ -256,7 +256,7 @@ def _sdk_upgrade() -> tuple[bool, str]:
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.1.0",
+    "2.1.1",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -595,16 +595,35 @@ class MonkeyCodePlugin(Star):
             data = client.team_list_mcp_upstreams()
         else:
             data = client.list_mcp_upstreams()
-        items = (
-            data.get("upstreams")
-            or data.get("list")
-            or data.get("items")
-            or (data if isinstance(data, list) else [])
+        items = self._extract_items(
+            data, "upstreams", "list", "items"
         )
         return [
-            self._normalize_mcp_upstream(u, scope) for u in (items or [])
+            self._normalize_mcp_upstream(u, scope) for u in items
             if isinstance(u, dict)
         ]
+
+    @staticmethod
+    def _extract_items(data, *keys) -> list:
+        """安全提取列表项：兼容裸 list 与 dict 容器（含 data/list/items 包裹）。
+
+        修复反模式「data.get(...) or ... or (data if isinstance(data, list) else [])」——
+        该写法对裸 list 会先调 .get 崩溃，isinstance 兜底永远够不到。
+        """
+        if data is None:
+            return []
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            for key in keys:
+                val = data.get(key)
+                if isinstance(val, list):
+                    return val
+            for key in ("data", "list", "items", "results", "records"):
+                val = data.get(key)
+                if isinstance(val, list):
+                    return val
+        return []
 
     async def view_mcp_list(self):
         """列出 MCP 上游（?scope=user|team）。"""
