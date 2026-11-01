@@ -256,7 +256,7 @@ def _sdk_upgrade() -> tuple[bool, str]:
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.0.11",
+    "2.0.12",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -361,11 +361,18 @@ class MonkeyCodePlugin(Star):
     def _normalize_host(h: dict) -> dict:
         """把平台宿主字段统一为后台下拉所需结构（状态/核心/内存/说明/自建公共）。"""
         memory = h.get("memory") or h.get("memory_size") or h.get("mem") or ""
+        owner = h.get("owner")
+        owner_type = (
+            str(owner.get("type") or "")
+            if isinstance(owner, dict)
+            else str(getattr(owner, "type", "") if hasattr(owner, "type") else "")
+        )
         is_public = bool(
             h.get("is_public")
             or h.get("is_shared")
             or h.get("public")
             or str(h.get("type") or "").lower() == "public"
+            or owner_type == "public"
         )
         return {
             "id": str(h.get("id") or h.get("host_id") or ""),
