@@ -7,7 +7,7 @@ import { useBridge } from './composables/useBridge'
 
 const bridge = useBridge()
 const theme = useTheme()
-const tab = ref<'dashboard' | 'settings' | 'logs'>('dashboard')
+const tab = ref<'dashboard' | 'settings' | 'mcp' | 'logs'>('dashboard')
 
 const loading = ref(true)
 const saving = ref(false)
@@ -22,6 +22,35 @@ const sdkInfo = reactive({
   up_to_date: true,
 })
 const sdkUpdating = ref(false)
+
+// ---------- MCP 管理 ----------
+interface McpTool {
+  id: string
+  name: string
+  namespaced_name?: string
+  description?: string
+  enabled: boolean
+}
+interface McpUpstream {
+  id: string
+  name: string
+  description?: string
+  url?: string
+  headers?: Record<string, string>
+  scope: string
+  tools: McpTool[]
+  editable: boolean
+}
+const mcpScope = ref<'user' | 'team'>('user')
+const mcpUpstreams = ref<McpUpstream[]>([])
+const mcpLoading = ref(false)
+const mcpMsg = ref('')
+const mcpMsgType = ref<'success' | 'error'>('success')
+const mcpDialog = ref(false)
+const mcpEditing = ref<McpUpstream | null>(null)
+const mcpForm = reactive({ name: '', url: '', headers: '' })
+const mcpBusy = ref('')
+const mcpSyncingId = ref('')
 
 // ---------- 日志 ----------
 const logs = ref<string[]>([])
@@ -240,6 +269,123 @@ async function updateSdk() {
 async function loadLogs() {
   const data = (await bridge.apiGet('logs')) as Record<string, unknown>
   logs.value = (data.logs as string[]) || []
+}
+
+// ---------- MCP 管理 ----------
+async function loadMcp() {
+  mcpLoading.value = true
+  mcpMsg.value = ''
+  try {
+    const data = (await bridge.apiGet('mcp', {
+      scope: mcpScope.value,
+    })) as Record<string, unknown>
+    mcpUpstreams.value = (data.upstreams as McpUpstream[]) || []
+  } catch (e) {
+    mcpMsg.value = '加载失败：' + (e as Error).message
+    mcpMsgType.value = 'error'
+  } finally {
+    mcpLoading.value = false
+  }
+}
+
+function openMcpCreate() {
+  mcpEditing.value = null
+  mcpForm.name = ''
+  mcpForm.url = ''
+  mcpForm.headers = ''
+  mcpDialog.value = true
+}
+
+function openMcpEdit(u: McpUpstream) {
+  mcpEditing.value = u
+  mcpForm.name = u.name || ''
+  mcpForm.url = u.url || ''
+  mcpForm.headers = Object.entries(u.headers || {})
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\n')
+  mcpDialog.value = true
+}
+
+function parseMcpHeaders(text: string): Record<string, string> | undefined {
+  const out: Record<string, string> = {}
+  let has = false
+  for (const line of text.split('\n')) {
+    const t = line.trim()
+    if (!t) continue
+    const i = t.indexOf(':')
+    if (i > 0) {
+      out[t.slice(0, i).trim()] = t.slice(i + 1).trim()
+      has = true
+    }
+  }
+  return has ? out : undefined
+}
+
+async function saveMcp() {
+  const body = {
+    scope: mcpScope.value,
+    name: mcpForm.name,
+    url: mcpForm.url,
+    headers: parseMcpHeaders(mcpForm.headers),
+  }
+  mcpBusy.value = 'save'
+  try {
+    if (mcpEditing.value) {
+      await bridge.apiPut(`mcp/${mcpEditing.value.id}`, body)
+    } else {
+      await bridge.apiPost('mcp', body)
+    }
+    mcpDialog.value = false
+    mcpMsg.value = '已保存'
+    mcpMsgType.value = 'success'
+    await loadMcp()
+  } catch (e) {
+    mcpMsg.value = '保存失败：' + (e as Error).message
+    mcpMsgType.value = 'error'
+  } finally {
+    mcpBusy.value = ''
+  }
+}
+
+async function deleteMcp(u: McpUpstream) {
+  if (!confirm(`删除 MCP 上游「${u.name}」？`)) return
+  mcpBusy.value = u.id
+  try {
+    await bridge.apiDelete(`mcp/${u.id}`, { scope: mcpScope.value })
+    mcpMsg.value = '已删除'
+    mcpMsgType.value = 'success'
+    await loadMcp()
+  } catch (e) {
+    mcpMsg.value = '删除失败：' + (e as Error).message
+    mcpMsgType.value = 'error'
+  } finally {
+    mcpBusy.value = ''
+  }
+}
+
+async function syncMcp(u: McpUpstream) {
+  mcpSyncingId.value = u.id
+  try {
+    await bridge.apiPost(`mcp/${u.id}/sync`, { scope: mcpScope.value })
+    mcpMsg.value = '已同步'
+    mcpMsgType.value = 'success'
+    await loadMcp()
+  } catch (e) {
+    mcpMsg.value = '同步失败：' + (e as Error).message
+    mcpMsgType.value = 'error'
+  } finally {
+    mcpSyncingId.value = ''
+  }
+}
+
+async function toggleTool(t: McpTool, val: boolean) {
+  try {
+    await bridge.apiPut(`mcp-tool/${t.id}`, { enabled: val })
+    t.enabled = val
+  } catch (e) {
+    mcpMsg.value = '切换失败：' + (e as Error).message
+    mcpMsgType.value = 'error'
+  }
 }
 
 function startLogsTimer() {
@@ -533,6 +679,7 @@ onMounted(async () => {
   await loadAll()
   await loadSdkInfo().catch(() => {})
   await loadLogs().catch(() => {})
+  await loadMcp().catch(() => {})
   startLogsTimer()
 })
 
@@ -540,6 +687,9 @@ watch(tab, (v) => {
   if (v === 'logs') {
     loadLogs().catch(() => {})
     startLogsTimer()
+  }
+  if (v === 'mcp') {
+    loadMcp().catch(() => {})
   }
 })
 
@@ -564,6 +714,7 @@ onUnmounted(() => {
         <v-tabs v-model="tab" color="primary" class="mb-4">
           <v-tab value="dashboard">概览</v-tab>
           <v-tab value="settings">设置</v-tab>
+          <v-tab value="mcp">MCP 管理</v-tab>
           <v-tab value="logs">日志</v-tab>
         </v-tabs>
 
@@ -925,6 +1076,155 @@ onUnmounted(() => {
             </div>
           </v-window-item>
 
+          <!-- ============ MCP 管理 ============ -->
+          <v-window-item value="mcp">
+            <v-card>
+              <v-card-title class="d-flex align-center flex-wrap">
+                MCP 上游
+                <v-spacer />
+                <v-btn-toggle
+                  v-model="mcpScope"
+                  color="primary"
+                  density="compact"
+                  variant="outlined"
+                  class="mr-2"
+                  @update:model-value="loadMcp"
+                >
+                  <v-btn value="user">个人</v-btn>
+                  <v-btn value="team">团队</v-btn>
+                </v-btn-toggle>
+                <v-btn
+                  color="primary"
+                  size="small"
+                  prepend-icon="mdi-plus"
+                  @click="openMcpCreate"
+                >
+                  新建上游
+                </v-btn>
+              </v-card-title>
+              <v-card-text>
+                <v-alert
+                  v-if="mcpMsg"
+                  :type="mcpMsgType"
+                  density="compact"
+                  class="mb-3"
+                  dismissible
+                  @update:model-value="mcpMsg = ''"
+                >
+                  {{ mcpMsg }}
+                </v-alert>
+                <v-alert
+                  v-if="mcpScope === 'team'"
+                  type="info"
+                  density="compact"
+                  class="mb-3"
+                >
+                  团队级 MCP：列表/创建/更新/删除/同步可用；工具启停仅个人级支持。
+                </v-alert>
+                <v-progress-linear
+                  v-if="mcpLoading"
+                  indeterminate
+                  class="mb-3"
+                />
+                <div v-if="mcpUpstreams.length === 0 && !mcpLoading">
+                  <v-alert type="info" density="compact">
+                    {{
+                      mcpScope === 'team'
+                        ? '暂无团队 MCP 上游。'
+                        : '暂无个人 MCP 上游。点击「新建上游」创建。'
+                    }}
+                  </v-alert>
+                </div>
+                <v-row v-else>
+                  <v-col
+                    v-for="u in mcpUpstreams"
+                    :key="u.id"
+                    cols="12"
+                    md="6"
+                  >
+                    <v-card
+                      variant="outlined"
+                      class="mb-2"
+                      :loading="mcpBusy === u.id || mcpSyncingId === u.id"
+                    >
+                      <v-card-title class="d-flex align-center">
+                        <span class="text-truncate">{{ u.name || u.id }}</span>
+                        <v-spacer />
+                        <v-btn
+                          icon="mdi-sync"
+                          size="small"
+                          variant="text"
+                          :loading="mcpSyncingId === u.id"
+                          title="同步"
+                          @click="syncMcp(u)"
+                        />
+                        <v-btn
+                          icon="mdi-pencil"
+                          size="small"
+                          variant="text"
+                          title="编辑"
+                          @click="openMcpEdit(u)"
+                        />
+                        <v-btn
+                          icon="mdi-delete"
+                          size="small"
+                          variant="text"
+                          color="error"
+                          title="删除"
+                          @click="deleteMcp(u)"
+                        />
+                      </v-card-title>
+                      <v-card-subtitle class="text-truncate">
+                        {{ u.url || '（无 URL）' }}
+                      </v-card-subtitle>
+                      <v-card-text>
+                        <div
+                          v-if="u.description"
+                          class="text-body-2 mb-2"
+                        >
+                          {{ u.description }}
+                        </div>
+                        <div v-if="u.tools.length">
+                          <div
+                            v-for="t in u.tools"
+                            :key="t.id"
+                            class="d-flex align-center"
+                          >
+                            <v-switch
+                              v-model="t.enabled"
+                              color="primary"
+                              hide-details
+                              density="compact"
+                              :disabled="mcpScope === 'team'"
+                              @update:model-value="
+                                (val: boolean | null) =>
+                                  toggleTool(t, Boolean(val))
+                              "
+                            />
+                            <div class="ml-2">
+                              <div class="text-body-2">
+                                {{ t.name || t.namespaced_name || t.id }}
+                              </div>
+                              <div
+                                v-if="t.description"
+                                class="text-caption text-medium-emphasis"
+                              >
+                                {{ t.description }}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div v-else class="text-body-2 text-medium-emphasis">
+                          该上游暂未列出工具（尝试同步）。
+                        </div>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+                </v-row>
+              </v-card-text>
+            </v-card>
+          </v-window-item>
+
           <!-- ============ 日志 ============ -->
           <v-window-item value="logs">
             <v-card>
@@ -970,6 +1270,46 @@ onUnmounted(() => {
             </v-card>
           </v-window-item>
         </v-window>
+
+        <!-- MCP 上游 Dialog -->
+        <v-dialog v-model="mcpDialog" max-width="560">
+          <v-card>
+            <v-card-title>
+              {{ mcpEditing ? '编辑 MCP 上游' : '新建 MCP 上游' }}
+            </v-card-title>
+            <v-card-text>
+              <v-text-field
+                v-model="mcpForm.name"
+                label="名称"
+                required
+                class="mb-2"
+              />
+              <v-text-field
+                v-model="mcpForm.url"
+                label="URL"
+                placeholder="https://…"
+                class="mb-2"
+              />
+              <v-textarea
+                v-model="mcpForm.headers"
+                label="请求头（每行 K: V）"
+                rows="3"
+                placeholder="Authorization: Bearer xxx"
+              />
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer />
+              <v-btn variant="text" @click="mcpDialog = false">取消</v-btn>
+              <v-btn
+                color="primary"
+                :loading="mcpBusy === 'save'"
+                @click="saveMcp"
+              >
+                保存
+              </v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
 
         <!-- 会话详情 Dialog -->
         <v-dialog v-model="detailDialog" max-width="720">

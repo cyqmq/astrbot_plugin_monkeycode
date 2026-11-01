@@ -256,7 +256,7 @@ def _sdk_upgrade() -> tuple[bool, str]:
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.0.12",
+    "2.1.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -322,6 +322,42 @@ class MonkeyCodePlugin(Star):
             self.view_logs,
             ["GET"],
             "获取插件运行日志（内存环形缓冲）",
+        )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/mcp",
+            self.view_mcp_list,
+            ["GET"],
+            "获取 MCP 上游列表（个人/团队）",
+        )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/mcp",
+            self.view_mcp_create,
+            ["POST"],
+            "创建 MCP 上游",
+        )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/mcp/<upstream_id>",
+            self.view_mcp_update,
+            ["PUT"],
+            "更新 MCP 上游",
+        )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/mcp/<upstream_id>",
+            self.view_mcp_delete,
+            ["DELETE"],
+            "删除 MCP 上游",
+        )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/mcp/<upstream_id>/sync",
+            self.view_mcp_sync,
+            ["POST"],
+            "同步 MCP 上游",
+        )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/mcp-tool/<tool_id>",
+            self.view_mcp_tool,
+            ["PUT"],
+            "启用/关闭 MCP 工具（仅个人）",
         )
 
     async def view_get_options(self):
@@ -512,6 +548,200 @@ class MonkeyCodePlugin(Star):
     async def view_logs(self):
         """返回内存环形缓冲中的最近日志。"""
         return json_response({"logs": list(_LOG_RING)})
+
+    # ---------- MCP 管理 ----------
+
+    @staticmethod
+    def _normalize_mcp_upstream(u: dict, scope: str) -> dict:
+        """把 MCP 上游字段统一为后台展示结构（含工具列表）。"""
+        tools = []
+        for t in (u.get("tools") or []):
+            if isinstance(t, dict):
+                tools.append(
+                    {
+                        "id": str(t.get("id") or ""),
+                        "name": str(
+                            t.get("name") or t.get("namespaced_name") or ""
+                        ),
+                        "namespaced_name": str(t.get("namespaced_name") or ""),
+                        "description": str(t.get("description") or ""),
+                        "enabled": bool(t.get("enabled", True)),
+                    }
+                )
+        return {
+            "id": str(u.get("id") or ""),
+            "name": str(u.get("name") or ""),
+            "description": str(u.get("description") or ""),
+            "url": str(u.get("url") or ""),
+            "headers": u.get("headers") or {},
+            "scope": scope,
+            "tools": tools,
+            "editable": str(u.get("scope") or "").lower() != "platform",
+        }
+
+    @staticmethod
+    def _mcp_scope(scope: str | None) -> str:
+        return "team" if (scope or "").lower() == "team" else "user"
+
+    async def _ensure_team(self, client) -> None:
+        """确保已登录团队会话（用插件配置的凭据，SDK 自动处理 PoW）。"""
+        if getattr(client, "_team_logged_in", False):
+            return
+        await asyncio.to_thread(client.team_login)
+        client._team_logged_in = True  # type: ignore[attr-defined]
+
+    def _mcp_upstreams(self, client, scope: str) -> list:
+        if scope == "team":
+            data = client.team_list_mcp_upstreams()
+        else:
+            data = client.list_mcp_upstreams()
+        items = (
+            data.get("upstreams")
+            or data.get("list")
+            or data.get("items")
+            or (data if isinstance(data, list) else [])
+        )
+        return [
+            self._normalize_mcp_upstream(u, scope) for u in (items or [])
+            if isinstance(u, dict)
+        ]
+
+    async def view_mcp_list(self):
+        """列出 MCP 上游（?scope=user|team）。"""
+        try:
+            client = await self._ensure_client()
+            scope = self._mcp_scope(
+                (request.query_params.get("scope") if request else None)
+            )
+            if scope == "team":
+                await self._ensure_team(client)
+            upstreams = await asyncio.to_thread(
+                self._mcp_upstreams, client, scope
+            )
+            return json_response({"scope": scope, "upstreams": upstreams})
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[{PLUGIN_NAME}] 获取 MCP 列表失败：{e}")
+            return error_response(str(e))
+
+    async def view_mcp_create(self):
+        """创建 MCP 上游（body: scope/name/url/headers）。"""
+        try:
+            client = await self._ensure_client()
+            payload = await request.json(default={})
+            if not isinstance(payload, dict):
+                return error_response("请求体必须是 JSON 对象", status_code=400)
+            scope = self._mcp_scope(str(payload.get("scope") or ""))
+            name = str(payload.get("name") or "").strip()
+            url = str(payload.get("url") or "").strip()
+            if not name or not url:
+                return error_response("name 与 url 必填", status_code=400)
+            headers = payload.get("headers") or None
+            if scope == "team":
+                await self._ensure_team(client)
+                fields: dict = {"name": name, "url": url}
+                if headers:
+                    fields["headers"] = headers
+                result = await asyncio.to_thread(
+                    client.team_create_mcp_upstream, **fields
+                )
+            else:
+                result = await asyncio.to_thread(
+                    client.create_mcp_upstream, name, url, headers
+                )
+            return json_response({"success": True, "result": result})
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[{PLUGIN_NAME}] 创建 MCP 上游失败：{e}")
+            return error_response(str(e))
+
+    async def view_mcp_update(self, upstream_id: str):
+        """更新 MCP 上游（body: scope/name/url/headers）。"""
+        try:
+            client = await self._ensure_client()
+            payload = await request.json(default={})
+            if not isinstance(payload, dict):
+                return error_response("请求体必须是 JSON 对象", status_code=400)
+            scope = self._mcp_scope(str(payload.get("scope") or ""))
+            fields: dict = {}
+            if payload.get("name"):
+                fields["name"] = str(payload["name"])
+            if payload.get("url"):
+                fields["url"] = str(payload["url"])
+            if payload.get("headers") is not None:
+                fields["headers"] = payload["headers"]
+            if not fields:
+                return error_response("未提供任何要更新的字段", status_code=400)
+            if scope == "team":
+                await self._ensure_team(client)
+                result = await asyncio.to_thread(
+                    client.team_update_mcp_upstream, upstream_id, **fields
+                )
+            else:
+                result = await asyncio.to_thread(
+                    client.update_mcp_upstream, upstream_id, **fields
+                )
+            return json_response({"success": True, "result": result})
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[{PLUGIN_NAME}] 更新 MCP 上游失败：{e}")
+            return error_response(str(e))
+
+    async def view_mcp_delete(self, upstream_id: str):
+        """删除 MCP 上游（?scope=user|team）。"""
+        try:
+            client = await self._ensure_client()
+            scope = self._mcp_scope(
+                (request.query_params.get("scope") if request else None)
+            )
+            if scope == "team":
+                await self._ensure_team(client)
+                result = await asyncio.to_thread(
+                    client.team_delete_mcp_upstream, upstream_id
+                )
+            else:
+                result = await asyncio.to_thread(
+                    client.delete_mcp_upstream, upstream_id
+                )
+            return json_response({"success": True, "result": result})
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[{PLUGIN_NAME}] 删除 MCP 上游失败：{e}")
+            return error_response(str(e))
+
+    async def view_mcp_sync(self, upstream_id: str):
+        """同步 MCP 上游（body: scope）。"""
+        try:
+            client = await self._ensure_client()
+            payload = await request.json(default={})
+            scope = self._mcp_scope(
+                str((payload or {}).get("scope") or "")
+            )
+            if scope == "team":
+                await self._ensure_team(client)
+                result = await asyncio.to_thread(
+                    client.team_sync_mcp_upstream, upstream_id
+                )
+            else:
+                result = await asyncio.to_thread(
+                    client.sync_mcp_upstream, upstream_id
+                )
+            return json_response({"success": True, "result": result})
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[{PLUGIN_NAME}] 同步 MCP 上游失败：{e}")
+            return error_response(str(e))
+
+    async def view_mcp_tool(self, tool_id: str):
+        """启用/关闭 MCP 工具（仅个人，团队无此端点）。"""
+        try:
+            client = await self._ensure_client()
+            payload = await request.json(default={})
+            if not isinstance(payload, dict):
+                return error_response("请求体必须是 JSON 对象", status_code=400)
+            enabled = bool(payload.get("enabled", True))
+            result = await asyncio.to_thread(
+                client.set_mcp_tool, tool_id, enabled
+            )
+            return json_response({"success": True, "result": result})
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[{PLUGIN_NAME}] 切换 MCP 工具失败：{e}")
+            return error_response(str(e))
 
     async def view_get_settings(self):
         """返回当前高级配置值（供视图表单填充）。"""

@@ -100,5 +100,41 @@ export function useBridge() {
     return resp.json()
   }
 
-  return { init, apiGet, apiPost }
+  async function apiPut<T = unknown>(
+    endpoint: string,
+    body?: unknown,
+  ): Promise<T> {
+    if (bridge) {
+      return (await bridge.apiPut(endpoint, plain(body))) as T
+    }
+    const url = `/api/plug/${PLUGIN_NAME}/${endpoint}`
+    const resp = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return resp.json()
+  }
+
+  async function apiDelete<T = unknown>(
+    endpoint: string,
+    params?: Record<string, unknown>,
+  ): Promise<T> {
+    if (bridge) {
+      return (await bridge.apiDelete(endpoint, plain(params))) as T
+    }
+    const url = new URL(
+      `/api/plug/${PLUGIN_NAME}/${endpoint}`,
+      window.location.origin,
+    )
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) url.searchParams.set(k, String(v))
+      })
+    }
+    const resp = await fetch(url.toString(), { method: 'DELETE' })
+    return resp.json()
+  }
+
+  return { init, apiGet, apiPost, apiPut, apiDelete }
 }
