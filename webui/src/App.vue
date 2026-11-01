@@ -13,6 +13,15 @@ const saving = ref(false)
 const msg = ref('')
 const msgType = ref<'success' | 'error'>('success')
 
+// ---------- SDK 版本 ----------
+const sdkInfo = reactive({
+  current: '',
+  latest: '',
+  required: '',
+  up_to_date: true,
+})
+const sdkUpdating = ref(false)
+
 // ---------- 概览数据 ----------
 interface TaskItem {
   id: string
@@ -196,6 +205,30 @@ async function loadDashboard() {
   dash.subscription = (data.subscription as Record<string, unknown>) || {}
   dash.runningTasks = (data.running_tasks as TaskItem[]) || []
   dash.recentTasks = (data.recent_tasks as TaskItem[]) || []
+}
+
+async function loadSdkInfo() {
+  const info = (await bridge.apiGet('sdk-info')) as Record<string, unknown>
+  sdkInfo.current = String(info.current || '')
+  sdkInfo.latest = String(info.latest || '')
+  sdkInfo.required = String(info.required || '')
+  sdkInfo.up_to_date = Boolean(info.up_to_date)
+}
+
+async function updateSdk() {
+  sdkUpdating.value = true
+  msg.value = ''
+  try {
+    const res = (await bridge.apiPost('sdk-update', {})) as Record<string, unknown>
+    msg.value = String(res.message || '已更新')
+    msgType.value = 'success'
+    await loadSdkInfo()
+  } catch (e) {
+    msg.value = '更新失败：' + (e as Error).message
+    msgType.value = 'error'
+  } finally {
+    sdkUpdating.value = false
+  }
 }
 
 async function loadAll() {
@@ -463,6 +496,7 @@ onMounted(async () => {
   })
   await bridge.init()
   await loadAll()
+  await loadSdkInfo().catch(() => {})
 })
 </script>
 
@@ -628,6 +662,42 @@ onMounted(async () => {
 
           <!-- ============ 设置 ============ -->
           <v-window-item value="settings">
+            <v-card v-if="!loading" class="mb-4">
+              <v-card-title>SDK 版本</v-card-title>
+              <v-card-text>
+                <div class="d-flex align-center flex-wrap ga-2">
+                  <v-chip variant="outlined" density="comfortable">
+                    当前：{{ sdkInfo.current || '-' }}
+                  </v-chip>
+                  <v-chip
+                    variant="outlined"
+                    density="comfortable"
+                    :color="sdkInfo.up_to_date ? 'success' : 'warning'"
+                  >
+                    最新：{{ sdkInfo.latest || sdkInfo.current || '-' }}
+                  </v-chip>
+                  <v-btn
+                    color="primary"
+                    size="small"
+                    :loading="sdkUpdating"
+                    :disabled="sdkInfo.up_to_date && !!sdkInfo.latest"
+                    @click="updateSdk"
+                  >
+                    <v-icon start>mdi-update</v-icon>
+                    更新 SDK
+                  </v-btn>
+                  <v-alert
+                    v-if="!sdkInfo.up_to_date && sdkInfo.latest"
+                    type="warning"
+                    density="compact"
+                    class="flex-grow-1"
+                  >
+                    有可用更新（{{ sdkInfo.current }} → {{ sdkInfo.latest }}）
+                  </v-alert>
+                </div>
+              </v-card-text>
+            </v-card>
+
             <v-card v-if="!loading" class="mb-4">
               <v-card-title>任务默认值</v-card-title>
               <v-card-text>

@@ -89,12 +89,66 @@ try:
 except ImportError:
     _sdk_format_round_text = None
 
+# 插件构建时对齐的 SDK 最低版本（与 requirements.txt 保持一致）
+_REQUIRED_SDK_VERSION = "1.10.0"
+
+
+def _sdk_ver_tuple(v: str) -> tuple[int, ...]:
+    """版本字符串转可比较元组（如 '1.10.0' -> (1,10,0)）。"""
+    parts = []
+    for p in str(v).split("."):
+        num = ""
+        for ch in p:
+            if ch.isdigit():
+                num += ch
+            else:
+                break
+        parts.append(int(num) if num else 0)
+    return tuple(parts)
+
+
+def _sdk_current_version() -> str:
+    """返回已安装 SDK 版本。"""
+    import monkeycode
+
+    return str(getattr(monkeycode, "__version__", "unknown"))
+
+
+def _sdk_latest_version() -> str:
+    """从 PyPI 查询 monkeycode-sdk 最新版本；失败返回空串。"""
+    import json
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(
+            "https://pypi.org/pypi/monkeycode-sdk/json", timeout=10
+        ) as resp:
+            info = json.load(resp)
+        return str(info["info"]["version"])
+    except Exception:
+        return ""
+
+
+def _sdk_upgrade() -> tuple[bool, str]:
+    """执行 pip install --upgrade monkeycode-sdk。返回 (成功, 当前版本/错误)。"""
+    import subprocess
+    import sys
+
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--upgrade", "monkeycode-sdk"],
+            timeout=300,
+        )
+        return True, _sdk_current_version()
+    except Exception as e:
+        return False, str(e)
+
 
 @register(
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.0.8",
+    "2.0.9",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -136,6 +190,18 @@ class MonkeyCodePlugin(Star):
             self.view_task_detail,
             ["GET"],
             "获取任务详情与会话轮次",
+        )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/sdk-info",
+            self.view_sdk_info,
+            ["GET"],
+            "获取 SDK 当前/最新版本",
+        )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/sdk-update",
+            self.view_sdk_update,
+            ["POST"],
+            "更新 monkeycode-sdk 到最新版",
         )
 
     async def view_get_options(self):
@@ -280,6 +346,37 @@ class MonkeyCodePlugin(Star):
         except Exception as e:
             return error_response(f"获取任务详情失败：{e}", status_code=500)
 
+    async def view_sdk_info(self):
+        """返回 SDK 当前版本与 PyPI 最新版本。"""
+        cur = _sdk_current_version()
+        latest = await asyncio.to_thread(_sdk_latest_version)
+        return json_response(
+            {
+                "current": cur,
+                "latest": latest,
+                "required": _REQUIRED_SDK_VERSION,
+                "up_to_date": bool(latest)
+                and _sdk_ver_tuple(cur) >= _sdk_ver_tuple(latest),
+            }
+        )
+
+    async def view_sdk_update(self):
+        """升级 monkeycode-sdk 到最新版。"""
+        cur = _sdk_current_version()
+        latest = await asyncio.to_thread(_sdk_latest_version)
+        if latest and _sdk_ver_tuple(cur) >= _sdk_ver_tuple(latest):
+            return json_response(
+                {"success": True, "message": f"已是最新版本（{cur}）", "current": cur}
+            )
+        ok, result = await asyncio.to_thread(_sdk_upgrade)
+        if ok:
+            logger.info(f"[{PLUGIN_NAME}] monkeycode-sdk 升级完成：{result}")
+            return json_response(
+                {"success": True, "message": f"升级完成，当前版本：{result}", "current": result}
+            )
+        logger.warning(f"[{PLUGIN_NAME}] monkeycode-sdk 升级失败：{result}")
+        return error_response(f"升级失败：{result}，请手动执行 pip install -U monkeycode-sdk")
+
     async def view_get_settings(self):
         """返回当前高级配置值（供视图表单填充）。"""
         keys = [
@@ -349,7 +446,8 @@ class MonkeyCodePlugin(Star):
         return json_response({"saved": True})
 
     async def initialize(self):
-        """插件初始化：启动每日自动签到（若开启）。"""
+        """插件初始化：SDK 版本检查 + 每日自动签到（若开启）。"""
+        self._check_sdk_version()
         if self._cfg("auto_checkin_enabled", False):
             try:
                 hour = int(self._cfg("auto_checkin_hour", 8) or 8)
@@ -374,6 +472,16 @@ class MonkeyCodePlugin(Star):
             await self._send(origin, f"✅ 每日签到完成：{self._format_checkin(result)}")
         except Exception as e:
             await self._send(origin, f"❌ 自动签到失败：{e}")
+
+    def _check_sdk_version(self) -> None:
+        """启动时检查已安装 SDK 是否满足插件最低要求，过旧则告警。"""
+        cur = _sdk_current_version()
+        if _sdk_ver_tuple(cur) < _sdk_ver_tuple(_REQUIRED_SDK_VERSION):
+            logger.warning(
+                f"[{PLUGIN_NAME}] monkeycode-sdk 版本过旧（{cur}），需要 "
+                f">={_REQUIRED_SDK_VERSION}，建议在后台页点击「更新 SDK」"
+                f"或执行 pip install -U monkeycode-sdk"
+            )
 
     # ---------- 配置 ----------
 
