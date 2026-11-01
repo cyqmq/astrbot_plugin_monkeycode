@@ -611,7 +611,7 @@ class MonkeyCodePlugin(Star):
         try:
             client = await self._ensure_client()
             scope = self._mcp_scope(
-                (request.query_params.get("scope") if request else None)
+                (request.query.get("scope") if request else None)
             )
             if scope == "team":
                 await self._ensure_team(client)
@@ -689,7 +689,7 @@ class MonkeyCodePlugin(Star):
         try:
             client = await self._ensure_client()
             scope = self._mcp_scope(
-                (request.query_params.get("scope") if request else None)
+                (request.query.get("scope") if request else None)
             )
             if scope == "team":
                 await self._ensure_team(client)
