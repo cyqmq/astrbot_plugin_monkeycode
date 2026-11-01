@@ -1140,7 +1140,6 @@ onUnmounted(() => {
                     v-for="u in mcpUpstreams"
                     :key="u.id"
                     cols="12"
-                    md="6"
                   >
                     <v-card
                       variant="outlined"
@@ -1188,20 +1187,22 @@ onUnmounted(() => {
                           <div
                             v-for="t in u.tools"
                             :key="t.id"
-                            class="d-flex align-center"
+                            class="d-flex align-center ga-2 py-1"
                           >
-                            <v-switch
-                              v-model="t.enabled"
-                              color="primary"
-                              hide-details
-                              density="compact"
-                              :disabled="mcpScope === 'team'"
-                              @update:model-value="
-                                (val: boolean | null) =>
-                                  toggleTool(t, Boolean(val))
-                              "
-                            />
-                            <div class="ml-2">
+                            <div class="flex-shrink-0" style="width: 56px">
+                              <v-switch
+                                v-model="t.enabled"
+                                color="primary"
+                                hide-details
+                                density="compact"
+                                inset
+                                :disabled="mcpScope === 'team'"
+                                @update:model-value="
+                                  (val) => toggleTool(t, Boolean(val))
+                                "
+                              />
+                            </div>
+                            <div class="flex-grow-1" style="min-width: 0">
                               <div class="text-body-2">
                                 {{ t.name || t.namespaced_name || t.id }}
                               </div>

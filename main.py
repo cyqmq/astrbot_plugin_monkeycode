@@ -256,7 +256,7 @@ def _sdk_upgrade() -> tuple[bool, str]:
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.1.1",
+    "2.1.2",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
