@@ -97,6 +97,33 @@ except ImportError:
 # 插件构建时对齐的 SDK 最低版本（与 requirements.txt 保持一致）
 _REQUIRED_SDK_VERSION = "1.10.0"
 
+# ---------- 内存日志环形缓冲（供后台「日志」页查看） ----------
+import logging as _logging
+import time as _time
+from collections import deque as _deque
+
+_LOG_RING: _deque[str] = _deque(maxlen=300)
+
+
+class _RingLogHandler(_logging.Handler):
+    """把日志记录追加到内存环形缓冲。"""
+
+    def emit(self, record: _logging.LogRecord) -> None:
+        try:
+            ts = _time.strftime(
+                "%m-%d %H:%M:%S", _time.localtime(record.created)
+            )
+            msg = record.getMessage()
+            if record.exc_info and record.exc_info[0]:
+                msg += f" | {record.exc_info[0].__name__}: {record.exc_info[1]}"
+            _LOG_RING.append(f"{ts} {record.levelname:<8} {msg}")
+        except Exception:
+            pass
+
+
+_RING_HANDLER = _RingLogHandler()
+_RING_HANDLER.setLevel(_logging.INFO)
+
 
 def _fallback_group_models(models: list[dict]) -> dict[str, list[dict]]:
     """SDK 过旧（无 group_models）时的本地降级分组：我的/基础/专业/旗舰/其他。"""
@@ -148,10 +175,32 @@ def _sdk_ver_tuple(v: str) -> tuple[int, ...]:
 
 
 def _sdk_current_version() -> str:
-    """返回已安装 SDK 版本。"""
-    import monkeycode
+    """返回磁盘上已安装的 SDK 版本（importlib.metadata，升级后立即准确）。
 
-    return str(getattr(monkeycode, "__version__", "unknown"))
+    不要读 monkeycode.__version__：进程已加载旧模块，pip 替换磁盘文件后
+    内存版本仍旧，会误报。磁盘 metadata 反映真实安装版本。
+    """
+    try:
+        import importlib.metadata as md
+
+        return str(md.version("monkeycode-sdk"))
+    except Exception:
+        try:
+            import monkeycode
+
+            return str(getattr(monkeycode, "__version__", "unknown"))
+        except Exception:
+            return "unknown"
+
+
+def _sdk_in_memory_version() -> str:
+    """返回当前进程已加载的 SDK 版本（模块 __version__）。"""
+    try:
+        import monkeycode
+
+        return str(getattr(monkeycode, "__version__", "unknown"))
+    except Exception:
+        return "unknown"
 
 
 def _sdk_latest_version() -> str:
@@ -170,7 +219,7 @@ def _sdk_latest_version() -> str:
 
 
 def _sdk_upgrade() -> tuple[bool, str]:
-    """执行 monkeycode-sdk 升级（pip 优先，失败回退 uv）。返回 (成功, 当前版本/错误)。"""
+    """执行 monkeycode-sdk 升级（pip 优先，失败回退 uv）。返回 (成功, 提示)。"""
     import shutil
     import subprocess
     import sys
@@ -193,7 +242,11 @@ def _sdk_upgrade() -> tuple[bool, str]:
     for cmd in cmds:
         try:
             subprocess.check_call(cmd, timeout=300)
-            return True, _sdk_current_version()
+            disk = _sdk_current_version()
+            in_mem = _sdk_in_memory_version()
+            if disk and disk != in_mem:
+                return True, f"升级完成（磁盘 {disk}），重启插件后生效"
+            return True, f"升级完成，当前版本：{disk or in_mem}"
         except Exception:
             continue
     return False, "pip 与 uv 均升级失败，请手动执行 pip install -U monkeycode-sdk"
@@ -203,7 +256,7 @@ def _sdk_upgrade() -> tuple[bool, str]:
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.0.10",
+    "2.0.11",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -213,6 +266,12 @@ class MonkeyCodePlugin(Star):
         self._login_lock = asyncio.Lock()
         self.scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
         self._register_web_apis()
+        # 把插件日志接入内存环形缓冲，供后台「日志」页展示
+        try:
+            if _RING_HANDLER not in logger.handlers:
+                logger.addHandler(_RING_HANDLER)
+        except Exception:
+            pass
 
     def _register_web_apis(self) -> None:
         """注册插件视图（views/settings）使用的后端 API。"""
@@ -257,6 +316,12 @@ class MonkeyCodePlugin(Star):
             self.view_sdk_update,
             ["POST"],
             "更新 monkeycode-sdk 到最新版",
+        )
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/logs",
+            self.view_logs,
+            ["GET"],
+            "获取插件运行日志（内存环形缓冲）",
         )
 
     async def view_get_options(self):
@@ -402,14 +467,16 @@ class MonkeyCodePlugin(Star):
             return error_response(f"获取任务详情失败：{e}", status_code=500)
 
     async def view_sdk_info(self):
-        """返回 SDK 当前版本与 PyPI 最新版本。"""
+        """返回 SDK 磁盘版本、PyPI 最新版本、是否需重启生效。"""
         cur = _sdk_current_version()
         latest = await asyncio.to_thread(_sdk_latest_version)
+        needs_restart = cur != _sdk_in_memory_version()
         return json_response(
             {
                 "current": cur,
                 "latest": latest,
                 "required": _REQUIRED_SDK_VERSION,
+                "needs_restart": needs_restart,
                 "up_to_date": bool(latest)
                 and _sdk_ver_tuple(cur) >= _sdk_ver_tuple(latest),
             }
@@ -420,17 +487,24 @@ class MonkeyCodePlugin(Star):
         cur = _sdk_current_version()
         latest = await asyncio.to_thread(_sdk_latest_version)
         if latest and _sdk_ver_tuple(cur) >= _sdk_ver_tuple(latest):
+            msg = f"已是最新版本（{cur}）"
+            if cur != _sdk_in_memory_version():
+                msg += "，重启插件后生效"
             return json_response(
-                {"success": True, "message": f"已是最新版本（{cur}）", "current": cur}
+                {"success": True, "message": msg, "current": cur}
             )
         ok, result = await asyncio.to_thread(_sdk_upgrade)
         if ok:
-            logger.info(f"[{PLUGIN_NAME}] monkeycode-sdk 升级完成：{result}")
+            logger.info(f"[{PLUGIN_NAME}] monkeycode-sdk 升级：{result}")
             return json_response(
-                {"success": True, "message": f"升级完成，当前版本：{result}", "current": result}
+                {"success": True, "message": result, "current": _sdk_current_version()}
             )
         logger.warning(f"[{PLUGIN_NAME}] monkeycode-sdk 升级失败：{result}")
         return error_response(f"升级失败：{result}，请手动执行 pip install -U monkeycode-sdk")
+
+    async def view_logs(self):
+        """返回内存环形缓冲中的最近日志。"""
+        return json_response({"logs": list(_LOG_RING)})
 
     async def view_get_settings(self):
         """返回当前高级配置值（供视图表单填充）。"""

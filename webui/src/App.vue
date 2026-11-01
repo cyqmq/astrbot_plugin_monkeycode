@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { onUnmounted, watch } from 'vue'
 import { useTheme } from 'vuetify'
 
 import { useBridge } from './composables/useBridge'
 
 const bridge = useBridge()
 const theme = useTheme()
-const tab = ref<'dashboard' | 'settings'>('dashboard')
+const tab = ref<'dashboard' | 'settings' | 'logs'>('dashboard')
 
 const loading = ref(true)
 const saving = ref(false)
@@ -21,6 +22,11 @@ const sdkInfo = reactive({
   up_to_date: true,
 })
 const sdkUpdating = ref(false)
+
+// ---------- 日志 ----------
+const logs = ref<string[]>([])
+const logsAuto = ref(true)
+let logsTimer: ReturnType<typeof setInterval> | null = null
 
 // ---------- 概览数据 ----------
 interface TaskItem {
@@ -229,6 +235,35 @@ async function updateSdk() {
   } finally {
     sdkUpdating.value = false
   }
+}
+
+async function loadLogs() {
+  const data = (await bridge.apiGet('logs')) as Record<string, unknown>
+  logs.value = (data.logs as string[]) || []
+}
+
+function startLogsTimer() {
+  if (logsTimer) return
+  logsTimer = setInterval(async () => {
+    if (logsAuto.value && tab.value === 'logs') {
+      try {
+        await loadLogs()
+      } catch {
+        /* ignore */
+      }
+    }
+  }, 3000)
+}
+
+function stopLogsTimer() {
+  if (logsTimer) {
+    clearInterval(logsTimer)
+    logsTimer = null
+  }
+}
+
+function toggleLogsAuto() {
+  logsAuto.value = !logsAuto.value
 }
 
 async function loadAll() {
@@ -497,6 +532,19 @@ onMounted(async () => {
   await bridge.init()
   await loadAll()
   await loadSdkInfo().catch(() => {})
+  await loadLogs().catch(() => {})
+  startLogsTimer()
+})
+
+watch(tab, (v) => {
+  if (v === 'logs') {
+    loadLogs().catch(() => {})
+    startLogsTimer()
+  }
+})
+
+onUnmounted(() => {
+  stopLogsTimer()
 })
 </script>
 
@@ -516,6 +564,7 @@ onMounted(async () => {
         <v-tabs v-model="tab" color="primary" class="mb-4">
           <v-tab value="dashboard">概览</v-tab>
           <v-tab value="settings">设置</v-tab>
+          <v-tab value="logs">日志</v-tab>
         </v-tabs>
 
         <v-window v-model="tab">
@@ -874,6 +923,51 @@ onMounted(async () => {
                 保存设置
               </v-btn>
             </div>
+          </v-window-item>
+
+          <!-- ============ 日志 ============ -->
+          <v-window-item value="logs">
+            <v-card>
+              <v-card-title class="d-flex align-center">
+                运行日志
+                <v-spacer />
+                <v-switch
+                  v-model="logsAuto"
+                  label="自动刷新"
+                  color="primary"
+                  hide-details
+                  density="compact"
+                  class="mr-2"
+                  @update:model-value="toggleLogsAuto"
+                />
+                <v-btn size="small" variant="outlined" @click="loadLogs">
+                  刷新
+                </v-btn>
+              </v-card-title>
+              <v-card-text>
+                <v-alert
+                  v-if="logs.length === 0"
+                  type="info"
+                  density="compact"
+                >
+                  暂无日志。执行操作（如提交任务、更新 SDK）后刷新查看。
+                </v-alert>
+                <pre
+                  class="log-viewer"
+                  style="
+                    max-height: 60vh;
+                    overflow: auto;
+                    white-space: pre-wrap;
+                    word-break: break-all;
+                    font-size: 12px;
+                    line-height: 1.6;
+                    padding: 12px;
+                    border-radius: 6px;
+                    background: rgba(0, 0, 0, 0.06);
+                  "
+                >{{ logs.join('\n') }}</pre>
+              </v-card-text>
+            </v-card>
           </v-window-item>
         </v-window>
 
