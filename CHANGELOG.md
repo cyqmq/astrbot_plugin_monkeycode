@@ -1,5 +1,11 @@
 # 更新日志
 
+## [v2.0.10] - 2026-10-31
+
+### 修复
+- **SDK 过旧不阻断加载**：`group_models`（v1.10.0 引入）改为可选导入，SDK 缺失时用本地 `_fallback_group_models` 降级分组（我的/基础/专业/旗舰/其他），插件在旧 SDK 上也能启动，进而触发启动告警与「更新 SDK」按钮
+- **升级兼容 uv**：`_sdk_upgrade` pip 失败时回退 `uv pip install`（AstrBot 常以 uv tool 安装，环境内可能无 pip）
+
 ## [v2.0.9] - 2026-10-31
 
 ### 修复

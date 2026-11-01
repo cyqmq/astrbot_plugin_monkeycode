@@ -26,7 +26,12 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.web import error_response, json_response, request
 
 from monkeycode import MonkeyCodeClient
-from monkeycode.models import RepoReq, group_models
+from monkeycode.models import RepoReq
+
+try:
+    from monkeycode.models import group_models as _sdk_group_models
+except ImportError:
+    _sdk_group_models = None
 
 PLUGIN_NAME = "astrbot_plugin_monkeycode"
 
@@ -93,6 +98,41 @@ except ImportError:
 _REQUIRED_SDK_VERSION = "1.10.0"
 
 
+def _fallback_group_models(models: list[dict]) -> dict[str, list[dict]]:
+    """SDK 过旧（无 group_models）时的本地降级分组：我的/基础/专业/旗舰/其他。"""
+    groups: dict[str, list[dict]] = {
+        "private": [],
+        "basic": [],
+        "pro": [],
+        "ultra": [],
+        "other": [],
+    }
+    for m in models or []:
+        owner = m.get("owner") if isinstance(m.get("owner"), dict) else {}
+        owner_type = str(
+            owner.get("type") or getattr(owner, "type", "") or ""
+        ).lower()
+        access = str(m.get("access_level") or "").lower()
+        if owner_type == "private":
+            groups["private"].append(m)
+        elif m.get("is_free") is False:
+            groups["ultra"].append(m)
+        elif access in ("pro", "professional"):
+            groups["pro"].append(m)
+        elif access == "basic":
+            groups["basic"].append(m)
+        else:
+            groups["other"].append(m)
+    return groups
+
+
+def _group_models(models: list[dict]) -> dict[str, list[dict]]:
+    """优先用 SDK 的 group_models；缺失时用本地降级实现。"""
+    if _sdk_group_models is not None:
+        return _sdk_group_models(models)
+    return _fallback_group_models(models)
+
+
 def _sdk_ver_tuple(v: str) -> tuple[int, ...]:
     """版本字符串转可比较元组（如 '1.10.0' -> (1,10,0)）。"""
     parts = []
@@ -130,25 +170,40 @@ def _sdk_latest_version() -> str:
 
 
 def _sdk_upgrade() -> tuple[bool, str]:
-    """执行 pip install --upgrade monkeycode-sdk。返回 (成功, 当前版本/错误)。"""
+    """执行 monkeycode-sdk 升级（pip 优先，失败回退 uv）。返回 (成功, 当前版本/错误)。"""
+    import shutil
     import subprocess
     import sys
 
-    try:
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "--upgrade", "monkeycode-sdk"],
-            timeout=300,
+    cmds: list[list[str]] = [
+        [sys.executable, "-m", "pip", "install", "--upgrade", "monkeycode-sdk"],
+    ]
+    if shutil.which("uv"):
+        cmds.append(
+            [
+                shutil.which("uv"),
+                "pip",
+                "install",
+                "--python",
+                sys.executable,
+                "--upgrade",
+                "monkeycode-sdk",
+            ]
         )
-        return True, _sdk_current_version()
-    except Exception as e:
-        return False, str(e)
+    for cmd in cmds:
+        try:
+            subprocess.check_call(cmd, timeout=300)
+            return True, _sdk_current_version()
+        except Exception:
+            continue
+    return False, "pip 与 uv 均升级失败，请手动执行 pip install -U monkeycode-sdk"
 
 
 @register(
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.0.9",
+    "2.0.10",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -224,7 +279,7 @@ class MonkeyCodePlugin(Star):
     @staticmethod
     def _tag_model_groups(models: list[dict]) -> list[dict]:
         """按页面分类给模型标注 _group（我的/基础/专业/旗舰/其他）。"""
-        groups = group_models(models)
+        groups = _group_models(models)
         names = {
             "private": "我的模型",
             "basic": "基础模型",
