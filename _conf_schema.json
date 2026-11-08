@@ -155,6 +155,18 @@
     "default": "任务,回复,停止,删除,重启,换模型,自动批准,取消自动批准,钱包,签到,交易记录,任务详情,用户输入,日志,文件下载",
     "hint": "这些命令会消耗积分或影响任务/账户，默认仅主人可用；留空则对群成员开放"
   },
+  "command_whitelist": {
+    "description": "允许使用 /mc 及 LLM 工具的用户 ID 白名单（逗号分隔）",
+    "type": "string",
+    "default": "",
+    "hint": "留空表示所有人可用（兼容旧行为）；填写后仅这些用户 ID 及机器人管理员可使用，避免陌生人消耗积分"
+  },
+  "command_control_whitelist": {
+    "description": "可启用/禁用本会话插件使用的用户 ID 白名单（逗号分隔）",
+    "type": "string",
+    "default": "",
+    "hint": "留空表示任何绑定用户都可执行 /mc 启用、/mc 禁用；填写后仅这些用户 ID 及机器人管理员可控制"
+  },
   "notify_on_task_end": {
     "description": "任务完成时发送短通知",
     "type": "bool",

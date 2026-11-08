@@ -20,6 +20,8 @@ AstrBot 插件：通过 **MonkeyCode 云平台** 提交 AI 编程任务并跟踪
 | `auto_checkin_enabled` | 开启每日自动签到（默认关闭） |
 | `auto_checkin_hour` | 每日自动签到时间（小时 0-23，默认 8） |
 | `admin_only_commands` | 仅主人/管理员可用的命令（逗号分隔，默认覆盖消耗积分/任务运维/账户相关命令） |
+| `command_whitelist` | 允许使用 `/mc` 及 LLM 工具的用户 ID（逗号分隔，空=所有人） |
+| `command_control_whitelist` | 可启用/禁用本会话插件使用的用户 ID（逗号分隔，空=任何绑定用户） |
 
 > 高级配置（默认仓库/分支/CLI/宿主/镜像/模型/技能、轮询参数、日志开关、
 > 会话持久化路径、自动切换模型、额度告警）请在插件详情页打开 **「MonkeyCode 后台」** 中配置。
@@ -87,7 +89,17 @@ pip install -i https://pypi.tuna.tsinghua.edu.cn/simple monkeycode-sdk
 /mc 评论 <项目ID> <IssueID> <内容>  评论 Issue
 /mc 自动批准 <任务ID>      开启/关闭任务自动批准
 /mc 签到 on [小时] / off  开启/关闭每日自动签到（结果推送当前会话）
+/mc 启用 / 禁用           启用/禁用本会话的 MonkeyCode 插件使用
 ```
+
+### 使用白名单与会话级启用
+
+- `command_whitelist` 配置后，仅这些用户 ID 及机器人管理员可执行 `/mc` 命令与
+  LLM 工具（`use_monkeycode`/`monkeycode_reply`），避免陌生人消耗积分；留空则所有人可用。
+- `/mc 启用` / `/mc 禁用` 可单独启用或关闭**当前群或当前私聊**的插件使用，未显式设置的
+  会话默认启用。此二指令始终可用（受控制权限约束），避免会话被禁用后无法恢复。
+- `command_control_whitelist` 配置后，仅这些用户 ID 及机器人管理员可执行
+  `/mc 启用` / `/mc 禁用`；留空则任何绑定用户可控制（兼容旧行为）。
 
 任务完成后，机器人会发送**简短文本通知 + 完整日志 md 文件**，避免长文本刷屏和浪费上下文。
 

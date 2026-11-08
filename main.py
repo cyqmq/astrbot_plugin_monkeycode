@@ -256,7 +256,7 @@ def _sdk_upgrade() -> tuple[bool, str]:
     "astrbot_plugin_monkeycode",
     "cyqmq",
     "MonkeyCode 编程助手（基于 monkeycode-sdk）",
-    "2.1.2",
+    "2.2.0",
 )
 class MonkeyCodePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -265,6 +265,9 @@ class MonkeyCodePlugin(Star):
         self._client: MonkeyCodeClient | None = None
         self._login_lock = asyncio.Lock()
         self.scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+        # 会话级启用/禁用：origin -> {"enabled": true/false}；未设置则默认启用
+        self._use_settings: dict[str, dict] = {}
+        self._load_use_settings()
         self._register_web_apis()
         # 把插件日志接入内存环形缓冲，供后台「日志」页展示
         try:
@@ -878,6 +881,36 @@ class MonkeyCodePlugin(Star):
 
     # ---------- 客户端懒登录 ----------
 
+    def _use_settings_path(self) -> str:
+        """会话级启用/禁用配置文件路径（插件数据目录）。"""
+        return os.path.join(
+            os.path.dirname(self._default_session_path()), "use_settings.json"
+        )
+
+    def _load_use_settings(self):
+        try:
+            with open(self._use_settings_path(), encoding="utf-8") as f:
+                data = json.load(f)
+            self._use_settings = {
+                str(k): dict(v)
+                for k, v in data.items()
+                if isinstance(v, dict)
+            }
+        except Exception:
+            self._use_settings = {}
+
+    def _save_use_settings(self):
+        try:
+            with open(self._use_settings_path(), "w", encoding="utf-8") as f:
+                json.dump(self._use_settings, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            logger.error(f"[{PLUGIN_NAME}] 会话使用设置保存失败: {e}")
+
+    def _set_session_use(self, origin: str, enabled: bool):
+        """设置某会话是否允许使用本插件命令。"""
+        self._use_settings.setdefault(origin, {})["enabled"] = enabled
+        self._save_use_settings()
+
     def _default_session_path(self) -> str:
         """返回 AstrBot 规范要求的插件数据目录下的会话文件路径。
 
@@ -956,18 +989,16 @@ class MonkeyCodePlugin(Star):
 
     @staticmethod
     def _args(event: AstrMessageEvent, cmd: str) -> list[str]:
-        """取指令参数，过滤平台附加标记（如 [MSG_ID:xxx]）。"""
+        """取指令参数，过滤平台附加标记（如 [MSG_ID:xxx]）。
+
+        注意：AstrBot 的 CommandFilter 已保证消息匹配该命令（命令名或命令名+空格），
+        因此只需剥离命令名前缀即可。
+        """
         text = (event.message_str or "").strip()
         # 剥离开头的平台标记（如 [MSG_ID:123] /mc 环境）
         text = re.sub(r"^(\s*\[[A-Z_]+:[^\]]+\]\s*)+", "", text)
         text = text.lstrip("/").strip()
-        if text.startswith(cmd):
-            rest = text[len(cmd):]
-        elif text.split() and text.split()[0].startswith(cmd):
-            tokens = text.split()
-            rest = tokens[0][len(cmd):] + " " + " ".join(tokens[1:])
-        else:
-            rest = ""
+        rest = text[len(cmd):] if text.startswith(cmd) else ""
         tokens = [a for a in re.split(r"[\s,，、]+", rest) if a]
         return [a for a in tokens if not re.match(r"^\[[A-Z_]+:", a)]
 
@@ -979,6 +1010,60 @@ class MonkeyCodePlugin(Star):
         if not raw:
             return set()
         return {s.strip() for s in raw.split(",") if s.strip()}
+
+    # ---------- 使用白名单 / 会话级启用 ----------
+
+    @property
+    def _command_whitelist(self) -> set[str]:
+        """允许使用 /mc 及 LLM 工具的用户 ID 白名单；为空表示所有人可用（兼容旧行为）。"""
+        raw = str(self._cfg("command_whitelist", "") or "")
+        return {s.strip() for s in re.split(r"[,，、\s]+", raw) if s.strip()}
+
+    @property
+    def _command_control_whitelist(self) -> set[str]:
+        """可启用/禁用本会话插件使用的用户 ID 白名单；为空表示任何绑定用户可控制。"""
+        raw = str(self._cfg("command_control_whitelist", "") or "")
+        return {s.strip() for s in re.split(r"[,，、\s]+", raw) if s.strip()}
+
+    def _session_use_enabled(self, origin: str) -> bool:
+        """判断某会话是否允许使用本插件（未显式设置时默认启用）。"""
+        settings = self._use_settings.get(origin)
+        if settings and "enabled" in settings:
+            return bool(settings["enabled"])
+        return True
+
+    def _can_use_command(self, event: AstrMessageEvent) -> bool:
+        """判断当前用户是否可使用 /mc 命令与 LLM 工具。
+
+        会话级禁用优先；再按使用白名单（空=所有人）或管理员放行。
+        """
+        if not self._session_use_enabled(event.unified_msg_origin):
+            return False
+        whitelist = self._command_whitelist
+        if not whitelist:
+            return True
+        if event.get_sender_id() in whitelist:
+            return True
+        try:
+            if event.is_admin():
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _can_control_use(self, event: AstrMessageEvent) -> bool:
+        """判断当前用户是否有权启用/禁用本会话的插件使用。"""
+        admins = self._command_control_whitelist
+        if not admins:
+            return True
+        if event.get_sender_id() in admins:
+            return True
+        try:
+            if event.is_admin():
+                return True
+        except Exception:
+            pass
+        return False
 
     # ---------- 任务提交与后台通知 ----------
 
@@ -1130,9 +1215,12 @@ class MonkeyCodePlugin(Star):
             logger.error(f"[{PLUGIN_NAME}] 小模型摘要失败: {e}")
             return str(getattr(result, "summary", "") or "")
 
-    @staticmethod
     def _desensitize(self, text: str) -> str:
-        """对文本中的敏感凭据做脱敏（API Key / PAT / token / 私钥等）。"""
+        """对文本中的敏感凭据做脱敏（API Key / PAT / token / 私钥等）。
+
+        注意：必须是实例方法（用 self._cfg 读 desensitize_enabled），
+        不能声明为 @staticmethod，否则 self 参数不会绑定导致 TypeError。
+        """
         if not self._cfg("desensitize_enabled", True):
             return text
         if not text:
@@ -1310,6 +1398,23 @@ class MonkeyCodePlugin(Star):
             yield event.plain_result(self._help_text())
             return
         action = args[0]
+        # 启用/禁用 始终可用（受控制权限约束），避免会话被禁用后无法恢复
+        if action in ("启用", "禁用"):
+            if not self._can_control_use(event):
+                yield event.plain_result("无权限：仅白名单中的用户可启用/禁用本会话的插件使用。")
+                return
+            if action == "启用":
+                self._set_session_use(event.unified_msg_origin, True)
+                yield event.plain_result("本会话已启用 MonkeyCode 插件。")
+            else:
+                self._set_session_use(event.unified_msg_origin, False)
+                yield event.plain_result("本会话已禁用 MonkeyCode 插件。")
+            return
+        if not self._can_use_command(event):
+            yield event.plain_result(
+                "本会话未启用 MonkeyCode 插件，或你不在使用白名单中。"
+            )
+            return
         admin_only = self._admin_only_actions()
         if action in admin_only and not event.is_admin():
             yield event.plain_result("该功能仅主人/管理员可用。")
@@ -1625,7 +1730,7 @@ class MonkeyCodePlugin(Star):
                 await self.context.send_message(event.unified_msg_origin, chain)
                 yield event.plain_result(f"✅ 已发送文件 {filename}。")
             elif action == "换模型":
-                if len(args) < 2:
+                if len(args) < 3:
                     yield event.plain_result("用法：/mc 换模型 <任务ID> <模型ID>")
                     return
                 task_id, model_id = args[1], args[2]
@@ -1722,7 +1827,8 @@ class MonkeyCodePlugin(Star):
             "/mc 重启 <任务ID>          重启任务\n"
             "/mc 交易记录              积分流水\n"
             "/mc 文件下载 <VMID> <路径> <文件名>  下载任务产物文件\n"
-            "/mc 签到 on [小时] / off   开启/关闭每日自动签到\n\n"
+            "/mc 签到 on [小时] / off   开启/关闭每日自动签到\n"
+            "/mc 启用 / 禁用   启用/禁用本会话的 MonkeyCode 插件使用\n\n"
             "也可直接对我说：用 MonkeyCode 帮我 <任务描述>"
         )
 
@@ -1847,6 +1953,11 @@ class MonkeyCodePlugin(Star):
         Args:
             task_description(string): 交给 MonkeyCode 完成的编程任务描述
         """
+        if not self._can_use_command(event):
+            yield event.plain_result(
+                "本会话未启用 MonkeyCode 插件，或你不在使用白名单中。"
+            )
+            return
         try:
             task_id = await self._submit_and_watch(
                 task_description, event.unified_msg_origin
@@ -1868,6 +1979,11 @@ class MonkeyCodePlugin(Star):
             task_id(string): MonkeyCode 任务 ID
             content(string): 要发送给 agent 的消息内容
         """
+        if not self._can_use_command(event):
+            yield event.plain_result(
+                "本会话未启用 MonkeyCode 插件，或你不在使用白名单中。"
+            )
+            return
         try:
             client = await self._ensure_client()
             # SDK 的 send_task_message 是原生 async（websockets），直接 await 即可
